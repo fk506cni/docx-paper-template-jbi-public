@@ -1,0 +1,45 @@
+<?xml version='1.0' encoding='UTF-8' ?>
+<!-- 回帰フィクスチャ (合成): svglite の出力 2 つを縦に連結した形を真似たもの。
+     `<g class='svglite'>` が 2 つある (clipPath の id は重複させていない = 条件 (1) だけを踏む)。
+     check-figures の図ツリー検査で「SVG の連結に起因する崩れの疑い」が 1 件出るのが正しい。
+     本文からは参照しない (docx の回帰に影響させないため)。 -->
+<svg xmlns='http://www.w3.org/2000/svg' xmlns:xlink='http://www.w3.org/1999/xlink' width='283.46pt' height='283.46pt' viewBox='0 0 283.46 283.46'>
+<g transform='translate(0,0)'>
+<g class='svglite'>
+<defs>
+  <style type='text/css'><![CDATA[
+    .svglite rect { fill: none; stroke: #000000; }
+    .svglite text { white-space: pre; }
+  ]]></style>
+</defs>
+<defs>
+  <clipPath id='cpMC4wMHwyODMuNDZ8MC4wMHwxNDEuNzM='>
+    <rect x='0.00' y='0.00' width='283.46' height='141.73' />
+  </clipPath>
+</defs>
+<g clip-path='url(#cpMC4wMHwyODMuNDZ8MC4wMHwxNDEuNzM=)'>
+<rect x='40.00' y='30.00' width='120.00' height='80.00' style='fill: #DDDDDD;' />
+<text x='40.00' y='24.00' style='font-size: 11.00px; font-family: sans-serif;'>Panel A</text>
+</g>
+</g>
+</g>
+<g transform='translate(0,141.73)'>
+<g class='svglite'>
+<defs>
+  <style type='text/css'><![CDATA[
+    .svglite rect { fill: none; stroke: #000000; }
+    .svglite text { white-space: pre; }
+  ]]></style>
+</defs>
+<defs>
+  <clipPath id='cpMC4wMHwyODMuNDZ8MC4wMHwxNDEuNzQ='>
+    <rect x='0.00' y='0.00' width='283.46' height='141.74' />
+  </clipPath>
+</defs>
+<g clip-path='url(#cpMC4wMHwyODMuNDZ8MC4wMHwxNDEuNzQ=)'>
+<rect x='40.00' y='30.00' width='200.00' height='80.00' style='fill: #BBBBBB;' />
+<text x='40.00' y='24.00' style='font-size: 11.00px; font-family: sans-serif;'>Panel B</text>
+</g>
+</g>
+</g>
+</svg>

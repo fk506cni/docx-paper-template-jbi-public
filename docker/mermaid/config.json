@@ -1,0 +1,14 @@
+{
+  "theme": "default",
+  "themeVariables": {
+    "fontSize": "18px",
+    "fontFamily": "sans-serif"
+  },
+  "htmlLabels": false,
+  "flowchart": {
+    "useMaxWidth": false,
+    "htmlLabels": false,
+    "nodeSpacing": 30,
+    "rankSpacing": 50
+  }
+}

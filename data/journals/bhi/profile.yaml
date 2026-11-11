@@ -1,0 +1,321 @@
+# profile.yaml — bhi (BioHealth Informatics)
+#
+# 発行: 日本医療情報学会 (Japan Association for Medical Informatics)
+# 出典: 投稿規定 "For Authors" https://biohealth-informatics.com/for-authors/ (2026-11 時点の公開ページ。
+#       各値は 2026-07-22 取得の PDF 版 全 14 ページで検証し、2026-11 の公開ページと照合した) /
+#       規定の文面だけでは決まらない点は「本テンプレートの扱い」と注記 (docs/journal-bhi.md §11)
+# 投稿: ScholarOne Manuscripts https://mc.manuscriptcentral.com/bhi
+# 規定⇔実装の対応表: docs/journal-bhi.md
+#   記事種別由来の値 (語数/抄録語数/図表点数/構造化要否/抄録ラベル) は article_types だけに持ち、
+#   limits / abstract に写しを置かない (値を二重に定義しない)。解決は
+#   main/00_setup/lib/journal_profile.py が行う
+
+name: "BioHealth Informatics"
+publisher: "Japan Association for Medical Informatics"          # ★ 確度高: 規定末尾の発行者表記
+submission_system: "https://mc.manuscriptcentral.com/bhi"       # ★ 確度高: "Manuscript Submission" 節
+
+# --- 引用スタイル / テンプレート ---
+csl: bhi.csl                  # 確度高: Vancouver + 上付き番号 + 上付き閉じ括弧 (閉じ括弧の上付きは本テンプレートの扱い) +
+                              #   先頭 3 著者 et al + minimal-two。_default(AMA 11th) では不一致。
+                              #   ※ 受入テスト: bash scripts/check-csl.sh
+                              #     (規定 p.11 の公式例 5 件と 1 文字ずつ照合。docs/journal-bhi.md §3.2)
+reference_doc: reference.docx # 確度高(体裁は Style 節): double/12pt/A4/25.4mm + 行番号 + ページ番号。
+                              #   ※ reference.docx は同梱しない (無ければ build.sh / diff.sh が生成する)。体裁値を変えたら
+                              #     `bash data/journals/make-reference.sh bhi` で再生成する
+                              #     (体裁は reference.docx に焼き込む設計。build 時には読まれない)
+
+# --- 体裁 (規定 "Style" 節に明記) ---
+line_spacing: double          # 確度高: "typed double-spaced throughout"
+line_numbers: continuous      # 確度高: "Line and page numbers must be indicated"
+line_numbers_scope: manuscript  # ★ 確度中(設計判断): 行番号を本文 (main.md) だけに付ける。
+                              #   規定の "Line and page numbers" は Style 節 = **原稿本体**の体裁として
+                              #   書かれており、カバーレターや査読対応レポートへの要求ではない。
+                              #   行番号は査読者が本文の位置を指し示すためのものなので、それ以外の文書に
+                              #   付いていると体裁の取り違えに見える。
+                              #   実装は「reference.docx をもう 1 つ持つ」のではなく、生成後の docx から
+                              #   sectPr の `w:lnNumType` を外す形 (postprocess.drop_line_numbers)。
+                              #   ページ番号は文書の識別に有用なので**残す**。
+                              #   ※ 未指定 (= all) なら全文書に付く
+page_numbers: true            # ★ 確度高: 同上。フッタに PAGE フィールド (実装は
+                              #   word/footer1.xml + Content_Types Override + rels + sectPr 先頭の
+                              #   footerReference。docs/journal-bhi.md §2.1)
+font: "Times New Roman"       # 確度低(既定): フォント種別の指定は規定に無い → _default を継承
+font_size: 12pt               # 確度高: "12-point type face"
+margins: 25.4mm               # 確度高: "margins of at least 2.5 cm (1 inch)"。1 inch = 25.4mm にして、cm と inch の
+                              #   どちらの読み方でも「以上」を満たす (25mm は 2.5 cm を満たすが 1 inch に 0.4mm 足りない)
+paper_size: a4                # 確度高: "formatted for A4 paper"
+text_styles:                  # ★ 省略可。無い誌は pandoc 既定の級数・色・行送りのまま
+  uniform_size: true          #   確度高: "12-point type face"。題 28pt / 見出し 20・16・14pt / 抄録 10pt を
+                              #   本文の 12pt にそろえ、見出しの階層は強調で付ける (題・Heading 1 = 太字 /
+                              #   Heading 2 = 太字斜体 / Heading 3 = 斜体)。roundtrip の計測は本文の最頻値しか
+                              #   見ないので、題や見出しの級数が規定から外れていても数字には出ない
+  heading_color: black        #   確度中(設計判断): 題・見出しのテーマ色 (青 0F4761) を外す。規定に色の定めは無いが、
+                              #   級数をそろえた原稿で見出しだけが青いのは不自然なので黒 (自動色) にそろえる。
+                              #   文献の DOI リンクの青と差分の色は対象外
+  uniform_line_spacing: true  #   確度高: "typed double-spaced throughout"。段落スタイルが個別に持つ行送りを外し、
+                              #   文書全体のダブルにそろえる。pandoc 既定の `Title` は行送りシングル
+                              #   (w:line="240") で、`Author` / `Date` / `Subtitle` がそれを継承する。
+                              #   Title は patch_reference_docx.py が本文の行送りに直すが、これはスタイルごとの
+                              #   指定に頼らずに全体をそろえる
+
+# --- 記事種別 ("Manuscript Types" 節の 8 種別) ---
+# 語数上限から除外されるのは 表・図 / 文献 / 図キャプション (規定本文) + 抄録 / Abbreviations
+# (抄録と Abbreviations を除き Declarations を数えるのは本テンプレートの扱い。docs/journal-bhi.md §1)。
+# sections は一次資料 "Main Text" 欄の転記 (参照用。節順の検査には使わない)
+#   ※ 逐語転記ではなく要約である。review / perspective / tutorial の "Body" は
+#     原文 "Body texts (flexible structure appropriate to the contents)"、letter の "Body" は
+#     "Body texts(continuous text without section headings)" を縮めたもの。原文の但し書き
+#     (自由構成・見出しなしの連続文) は note 側と CLAUDE.md の執筆規約に持たせている。
+#     参照用キーなので実害は無いが、一次資料と 1 対 1 で突合するときは原文に当たること。
+article_type: original        # ★ 既定の種別 (主たる投稿対象)。--article-type で上書き
+article_types:                # ★ 各種別の値はすべて確度高 (一次資料の表と一致確認済み)
+  original:
+    name: "Original Article"
+    word_count: 4000
+    abstract_words: 300
+    abstract_structured: true
+    abstract_labels: [Objective, Methods, Results, Conclusion]
+    figures_tables: 8
+    sections: [Abstract, Introduction, Methods, Results, Discussion, Conclusion,
+               Declarations, References, "Figure Legends"]
+  review:
+    name: "Review Article"
+    word_count: 4800
+    abstract_words: 300
+    abstract_structured: false
+    figures_tables: 10
+    sections: [Abstract, Body, Declarations, References, "Figure Legends"]
+    note: "系統的レビューは PRISMA チェックリストを supplementary で提出することが推奨"
+  short:
+    name: "Short Communication"
+    word_count: 2400
+    abstract_words: 200
+    abstract_structured: false
+    figures_tables: 4
+    sections: [Abstract, Introduction, Methods, Results, Discussion, Conclusion,
+               Declarations, References, "Figure Legends"]
+  technical:
+    name: "Technical Note"
+    word_count: 3600
+    abstract_words: 200
+    abstract_structured: false
+    figures_tables: 5
+    sections: [Abstract, Introduction, "Technical Description", Discussion, Conclusion,
+               Declarations, References, "Figure Legends"]
+    note: "ソフト/プロトコルの公開リポジトリでの提供が強く推奨"
+  data:
+    name: "Data Report"
+    word_count: 3600
+    abstract_words: 200
+    abstract_structured: false
+    figures_tables: 5
+    sections: [Abstract, Introduction, "Data Description", "Usage Notes", Conclusion,
+               Declarations, References, "Figure Legends"]
+    note: "オープンデータ公開 + 公共リポジトリ登録が必須。永続的識別子つき DAS が必須"
+  perspective:
+    name: "Perspective"
+    word_count: 2400
+    abstract_words: 200
+    abstract_structured: false
+    figures_tables: 4
+    sections: [Abstract, Body, Declarations, References, "Figure Legends"]
+    note: "トピックに関する著者の専門性の簡潔な陳述が推奨"
+  tutorial:
+    name: "Tutorial"
+    word_count: 2400
+    abstract_words: 200
+    abstract_structured: false
+    figures_tables: 4
+    sections: [Abstract, Body, Declarations, References, "Figure Legends"]
+  letter:
+    name: "Letter to the Editor"
+    word_count: 1200
+    abstract_words: null        # 確度高: 抄録 "Not required"
+    abstract_structured: false
+    figures_tables: 1
+    sections: [Body, Declarations, References, "Figure Legends"]
+    note: "本文は見出しなしの連続文 (continuous text without section headings)"
+
+# --- 図 ("Figures" / "Manuscript Submission" 節) ---
+figures:
+  embed: true                 # 草稿は docx 埋込 (共著者の視認性)。最終 (--mode final) は分離
+                              #   (確度高: "Figures must NOT be embedded within the manuscript file")
+  formats: [pptx, png, tif]   # 確度高: 受入は JPEG/TIF/PNG/PowerPoint。★PDF・EPS は不可 (SVG/PDF/EPS は
+                              #   受け付ける形式に挙がっていない)。pptx を先頭に置くのは
+                              #   ベクター維持のため (docs/journal-bhi.md §5.1 案 B)。
+                              #   ✅ pptx の生成経路 — `--mode final` は 1 図 =
+                              #     1 pptx = 1 スライドで SVG をベクターのまま埋め込み、300dpi PNG
+                              #     フォールバックを同梱する (docs/journal-bhi.md §5.3)。
+                              #     ✅ **PowerPoint 実機で確認済み** (Microsoft 365 バージョン 2606 ビルド 16.0.20131.20154。
+                              #       SVG 側が描画され、グループ化解除で文字も編集できた)。
+                              #       ※買い切り版 Office 2016 は PNG フォールバック表示のまま。
+                              #     退避はいつでも `--format png` (300dpi ラスタ。規定要件は満たせる)
+  dpi: 300                    # 確度高: "image files should have a minimum of 300 dpi"
+                              #   (原文は "image files" = ラスタへの要求。ベクターには dpi の概念がない)
+                              #   ✅ SVG から作るラスタ図では**実際に保証される** — SVG の公称サイズから
+                              #     画素数を計算し、実画素数を検算し (不足はエラー)、pHYs を書き込む
+                              #     (docs/journal-bhi.md §5.2)。検算: bash scripts/check-figures.sh
+  vector_container: pptx      # ★ 確度高(設計判断): ベクターを載せる容器。受入 4 形式で唯一
+                              #   ベクターを保持できるのが PowerPoint (§5.1)。
+                              #   ※ **このキーはコードが読まない予約キー** — 主形式は上の formats の
+                              #     先頭が決める (journal_profile.DEFAULTS のコメント)
+  pptx:                       # ★ §5.1.6 (package.resolve_pptx_cfg が読む 4 キー)
+    mode: svg-blob            #   svg-blob(案B・推奨。SVG を埋め込んで生成) /
+                              #   passthrough(案A。一次 pptx を無変換コピー。※ svg-blob でも図の隣に
+                              #     同名 .pptx があれば自動でコピーに切り替わる) /
+                              #   native-shapes(案B′。**未実装 — 指定するとエラーで停止する**)
+    slide_fit: figure         #   スライドサイズを図の物理サイズに合わせる (スライド側の余白を作らない。
+                              #   ※ SVG 内部の白余白は削らない — 余白トリミングは執筆規約の人手対応)。
+                              #   ※ 図が 1 インチ未満の軸は規格下限までスライドを広げて中央配置する
+                              #     (クランプ。足した余白は警告に出る)。56 インチ超はエラー停止し、
+                              #     `--slide-fit fixed` (既定サイズに縮小配置) へ退避する (§5.3)
+    png_fallback_dpi: null    #   null = figures.dpi (300) を継承 (値を二重に定義しない。
+                              #   解決は journal_profile.resolve() が行う)。SVG 非対応環境向け
+                              #   フォールバックだが、多数の受け手が実際に見る本体
+    text_to_path: false       #   既定 false。理由 (§5.1.3 リスク 3):
+                              #   (1) BHI は受理後に組版会社が組み直すため文字を図形化すると修正も検索も
+                              #   できない (2) 多数の受け手には PNG 代替が表示され、PNG はコンテナ内
+                              #   フォントで描画済みなのでフォント依存の実害が小さい (3) 「編集可能な
+                              #   シェイプ」を求められた場合にアウトライン化済みの図は最も遠い答えになる。
+                              #   true は特定フォントの崩れが実際に観測されたときの対処として残す
+  font_handling: embed        # ラスタ出力なので実質不問 (中間 svg→png の描画品質のため embed 相当)。
+                              #   優先関係: pptx 経路では figures.pptx.text_to_path が
+                              #   優先し、font_handling は PNG フォールバック生成にのみ効く
+  placement: end              # 確度高: 原稿に埋め込まない (※ このキーはコードが読まない)
+  legends_section: "Figure Legends"   # ★ 確度高: 題+凡例を References 後の新ページに集約。
+                              #   ✅ `--mode final` (--keep-figures なし) のとき
+                              #   `ImageCaption` 段落 + 直後に連続する `Legend` 段落すべてを 1 組として
+                              #   sectPr の直前へ移し、この見出し (Heading1 + 改ページ) の下に並べる。
+                              #   本文の元位置には `[Figure N about here]` が残る (main/step05_package/relocate.py)
+  title_words: 15                     # ★ 確度高: "Figure titles (max 15 words)"
+  legend_words: 300                   # ★ 確度高: "legends (max 300 words)"
+  keys_in_graphic: true               # ★ 確度高: "Figure keys should be incorporated into the graphic"
+  multipanel_single_file: true        # ★ 確度高: "Multi-panel figures ... single composite file"
+
+# --- 表 ("Tables" 節) ---
+tables:
+  placement: separate         # ★ 確度高 (規定の文面) + 設計判断: 規定 (For Authors) は "placed at the end
+                              #   of the main manuscript file" と "or can be submitted as a separate file" の
+                              #   両方を認める。本テンプレートは**別ファイル**を既定にする — 本文 docx が
+                              #   テキストだけになり、規定のどちらの読み方にも合うため。
+                              #   `TableCaption` 段落 + `w:tbl` + 直後に連続する `Legend` 段落すべてを 1 組
+                              #   として本文から外し、元位置に `[Table N about here]` を残して、
+                              #   `tables/TableN.docx` に 1 表 1 ファイルで出す (題が上・凡例が下。行番号は
+                              #   line_numbers_scope に従って外す)。テキストボックス内の表は動かさない。
+                              #   `end` = 同じ組を本文の末尾 (sectPr の直前) へ移す。
+                              #   値は inline / end / separate のいずれか (未知の綴りはエラーで停止)
+  section_title: null         # ★ 末尾に移した表の前に置く見出し。null = 見出しなし (改ページのみ)。
+                              #   規定は原稿本体の構成として "Tables" を挙げるだけで見出しの文言を
+                              #   定めていないため、規定に無い文字列を提出物に足さない判断で null にした
+                              #   (各表の題 "Table 1: …" が識別子として機能する)
+  object: word                # ★ 確度高: "'Table object' function in Word/Excel/PowerPoint"。画像化不可
+  allow_color: false          # ★ 確度高: "Color and shading may not be used"。
+                              #   ✅ docx 層の lint — w:shd (網掛け) / w:color (文字色) /
+                              #   w:highlight (蛍光ペン) を検出して警告する。**数値の桁区切りカンマは
+                              #   Markdown 層 = validate.py の担当**で、ここでは扱わない
+  thousands_separator: false  # ★ 確度高: "Commas should not be used to indicate numerical values"
+  title_words: 15             # ★ 確度高: "Table titles (max 15 words) ... above the table"
+  legend_words: 300           # ★ 確度高: "legends (max 300 words) ... underneath the table"
+  separate_file_allowed: true # ★ 確度高: "or can be submitted as a separate file"
+
+# --- 上限 (誌全体で共通のもののみ。記事種別ごとの word_count / abstract_words /
+#     figures_tables は article_types 側だけに持ち、journal_profile.resolve() が
+#     ここへ解決する — 二重定義の解消) ---
+limits:
+  references: null            # 確度高(規定なし): 文献数の上限は明示なし
+  title_words: 30             # ★ 確度高: "not exceeding 30 words" (Title 節)
+  keywords: [3, 5]            # ★ 確度高: "Three to five keywords" (MeSH 準拠)。[下限, 上限]
+  video_mb: 50                # ★ 確度高: "Video: MP4 (each file must not exceed 50MB)"。
+                              #   **10 進 (1MB = 1,000,000 バイト) で判定する**。
+                              #   1024 進で割った値を「MB」と比較すると上限が実質 52.4MB になり、
+                              #   規定より 4.9% 甘い。投稿系が 10 進で数えている場合に
+                              #   「テンプレートは合格・投稿系は拒否」となるため安全側に倒した
+                              #   (規定は単位の流儀を明示していない。境界の実測は 50,000,001 バイト)
+
+# --- 抄録 (誌全体で共通のもののみ。structured / labels は article_types から解決) ---
+blinded: false                # 確度中: 二重盲検 (匿名化) の記述は規定に無い
+abstract:
+  citations_allowed: false    # ★ 確度高: "do not cite references in the abstract"
+  keyword_source: MeSH        # ★ 確度高: "Keywords should refer to MeSH ... the MEDLINE thesaurus"
+
+# --- Declarations ("Declarations" 節) ---
+declarations:
+  required:                   # ★ 確度高: 全 6 項目 (該当なしは "Not applicable")
+    - "Funding"
+    - "Authors' contributions"
+    - "Data availability statement"
+    - "Ethics approval and consent to participate"
+    - "Consent for publication"
+    - "Competing interests"
+  credit: true                # ★ 確度高: CRediT (14 contributor roles) で個別に記述
+  abbreviations_section: true # ★ 確度高: "between Abstract and 'Introduction' section" に略語一覧
+                              #   (一覧で定義すれば本文で使えるが、図表の凡例では改めて定義する)
+
+# --- 提出物 ("Manuscript Submission" 節) ---
+submission:
+  text_formats: [docx]                    # ★ 確度高: "Text ...: MS Word"
+  table_formats: [docx, xlsx, pptx]       # ★ 確度高: "Tables: MS Word, Excel, PowerPoint" (画像化は不可)
+  figure_formats: [jpeg, tif, png, pptx]  # ★ 確度高: "Figures: JPEG, TIF, PNG, PowerPoint"。
+                                          #   この一覧に無い形式へ代替しそうなときはエラーで停止する
+                                          #   (package.py が参照)
+  video_formats: [mp4]                    # ★ 確度高: "Video: MP4"
+  forms: ["COI Disclosure Form (1 通。連絡著者が全著者を代表して記入し、PDF に変換して提出)",
+          "License to Publish (1 通。連絡著者が全著者を代理して日付・全著者名・題を記入し、PDF に変換して提出)"]
+                                          # ★ 確度高: "LTP/COI Forms" 節。
+                                          #   ✅ 通数は COI が For Authors の Competing interests、LTP が様式の記述による (どちらも
+                                          #   1 通)。PDF 化は両様式のヘッダの指示で、署名欄は無い。
+                                          #   詳細は docs/journal-bhi.md §4.1。
+                                          #   package.py は各項目をそのまま SUBMISSION.md に出すので、
+                                          #   通数と記入者は項目の注記として書く
+  supplementary: as-is                    # ★ 確度高: "published as received ... without any conversion"。
+                                          #   査読対象・受理後の変更不可 → 投稿時に最終形で出す。
+                                          #   ✅ `--mode final` が `<INPUT_ROOT>/supplementary/` を
+                                          #   無変換で複製する (動画は limits.video_mb と本ブロックの
+                                          #   video_formats を検査する)
+# ※ このブロック全体が **提出マニフェスト `SUBMISSION.md` の生成元**でもある。
+#   **`text_formats` を持つ誌にだけマニフェストを書き出す** (ブロックごと無い誌では出ない)。
+#   「1 つでも値があれば出す」にしないのは、`figure_formats` が形式の検査にも使われるキーで、
+#   新しい誌を足すとき最初に書きたくなるため。それだけで不完全なマニフェストが出ると
+#   「この誌はフォームの提出を求めていない」のように未調査が断定に化ける。
+
+# --- 執筆 lint ("Units" / "Method of stating the names of devices" 節) ---
+#
+# ※ forbid_chars / units / placeholder_markers / legend_placement は **BHI 固有ではない**ため、
+#   既定値は基底 (main/00_setup/lib/journal_profile.py の DEFAULTS) に置いてある。
+#   ここに書いてあるのは「規定の原文に裏づけがある値」である。誌固有なのは device_notation と
+#   corresponding_author の 2 つ。
+#   lint の禁止集合 (`forbid_` で始まる list) は**基底と誌の和**で解決する (journal_profile._merge_forbid_lists)。
+#   誌の側で少なく書いても基底の文字は検査から外れない。検査そのものを止めたいときだけ null を書く
+#   (この一覧を編集するときは DEFAULTS["lint"] と同時に直すこと)。
+lint:
+  # 基底 (journal_profile.DEFAULTS["lint"]) と同一の 11 種。値を並べて持つのは規定の原文との
+  # 対応 (下記の確度) を BHI プロファイル側に残すためで、検査の範囲を変える意図はない。
+  forbid_chars: ["℃", "℉", "㎎", "㎏", "㎜", "㎝", "㎡", "㎥", "㎕", "㎖", "㎗"]
+                              # ℃ は確度高: 度記号 "°" + 大文字 "C" で書き
+                              #   "a single special character" を使わない (Units 節 4)。
+                              #   ℉ 以下は確度中(類推): 規定が明示するのは温度のみだが、同趣旨の
+                              #   合成 1 文字として安全側で lint 対象に含める。
+                              #   ✅ 行番号つきで指摘し "°C" 等の書き方を案内する
+  units: SI                   # ★ 確度高: "SI or SI-derived units"。臨床慣用単位 (mmHg 等) は可。
+                              #   ✅ 検査あり。ただし**狭い検出器**である — 英米慣用単位
+                              #   (°F / inch / lb / oz / mile / gallon) の綴りを拾うだけで、
+                              #   「SI に準拠している」ことの証明にはならない (参考情報として出す)
+  device_notation: true       # ★ 確度高: 機器は 型番 + 製造元 + 所在地 (市・州・国) を括弧内に。
+                              #   統計ソフトはバージョンも。
+                              #   ✅ 検査あり。機器一般は文面から機械判定できないので、
+                              #   規定が特に念を押している**統計ソフト**に絞ってある
+                              #   (SPSS / SAS / Stata / MATLAB / GraphPad / Prism / JMP / EZR /
+                              #    S-PLUS / "R version" にバージョンと括弧内の製造元があるか)
+  corresponding_author: true  # ★ 確度高(Title page 節): corresponding author は **1 名のみ**で、
+                              #   氏名・住所全文・電話・E-mail を書く。
+                              #   ✅ custom-style="Corresponding" Div を検査する。
+                              #   既定は無効なので、本キーを持たない誌では発火しない
+  langid_japanese_only: true  # ★ bhi.csl は langid (pandoc が CSL の language に写す) があるだけで
+                              #   言語によらず "(in Japanese)" を付ける。書誌管理ソフトが英語の文献に
+                              #   付けた langid = {english} を要修正として出す (和文以外の非英語は note で書く)
+
+# --- 番号書式 ---
+numbering:
+  figure: "Figure %d."        # 確度中: 規定は "numbered in the order they are first mentioned"。
+                              #   表記例の明示は無いため _default と同じフル表記を採用
+  table: "Table %d."          # 確度高: "using Arabic numerals (i.e. Table 1, Table 2 etc.)"

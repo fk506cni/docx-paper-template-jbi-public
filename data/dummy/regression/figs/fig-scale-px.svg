@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- data/dummy/regression/figs/fig-scale-px.svg — 300dpi 換算のフィクスチャ (px 単位を明示した SVG)。
+     width/height に px を付けた形。単位なし (data/dummy/figs/fig-overview.svg) と同じく
+     CSS px = 1/96 in として扱われ、240px x 96px = 2.5 x 1.0 in → 300dpi で 750 x 300 px になる。
+     rsvg-convert -d 300 -p 300 だけで描くと 240 x 96 px のままになる (規定違反の図になる)。 -->
+<svg xmlns="http://www.w3.org/2000/svg" width="240px" height="96px" viewBox="0 0 240 96"
+     font-family="Arial, sans-serif">
+  <rect x="0.5" y="0.5" width="239" height="95" fill="#ffffff" stroke="#cccccc"/>
+  <rect x="12" y="24" width="96" height="48" rx="4" fill="#eef7ee" stroke="#2E7D32"/>
+  <text x="60" y="53" font-size="13" text-anchor="middle" fill="#1b5e20">240 px</text>
+  <path d="M 116 48 L 148 48" stroke="#2E7D32" stroke-width="2" fill="none"/>
+  <path d="M 148 48 l -6 -4 v 8 z" fill="#2E7D32"/>
+  <rect x="156" y="24" width="72" height="48" rx="4" fill="#f7eeee" stroke="#7D2E2E"/>
+  <text x="192" y="53" font-size="13" text-anchor="middle" fill="#5e1b1b">96 px</text>
+</svg>

@@ -1,0 +1,15 @@
+%%{init: {"theme": "base", "themeVariables": {"primaryColor": "#e8f4fc", "primaryBorderColor": "#2196F3", "lineColor": "#555555"}}}%%
+%% data/dummy/regression/figs/mermaid/flow-theme.mmd — 回帰フィクスチャ (合成。本文からは参照しない)
+%% テーマの色を変えたうえでサブグラフと辺のラベルを使う。Mermaid はサブグラフの枠・辺のラベルの色を
+%% hsl() で算出するが、docker/mermaid/convert.sh の後処理が 16 進に直すので、図ツリーには hsl() が残らず、
+%% check-figures の注意も出ないのが正しい (直さないと Word / PowerPoint で枠が黒くなる)。
+%% ラベルも HTML (foreignObject) ではなく SVG の文字で出る。
+flowchart LR
+    subgraph IN["Input"]
+        SUB["subject"] --> APP["apparatus body"]
+    end
+    subgraph PR["Process"]
+        LOG["trial logger"] --> COMB["combination rule"]
+    end
+    APP --> LOG
+    COMB -->|"stored"| ARCH["stored trial record"]

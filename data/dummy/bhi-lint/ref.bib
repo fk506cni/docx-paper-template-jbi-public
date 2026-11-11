@@ -1,0 +1,55 @@
+% data/dummy/bhi-lint/ref.bib — lint フィクスチャ用のダミー文献
+%
+% 内容は明らかなフィクション (TJD/THS のパロディ)。**data/dummy/bhi/ref.bib と同じ 3 件**で、
+% 本ファイルの役目は不適合原稿 main.md がビルドを通ることと、**文献側の違反 1 つ**
+% (chokkan2100 の langid = {english}。main.md の違反一覧の 26.) を持つことである。
+% ほかの lint はすべて main.md 側にある。
+% 以下は data/dummy/bhi/ref.bib と同じ注記で、BHI の文献記載作法
+% (CLAUDE.md / docs/journal-bhi.md §3.2) の要点である:
+%   - journal は Index Medicus の【略誌名】で持つ (CSL は正式誌名→略誌名の変換ができないので
+%     入力側で略記にするしかない)。**架空誌なので NLM Catalog には無い** — 実在誌を写経する
+%     ときの引き方は docs/migration-latex.md §4 を参照
+%   - 和文論文には langid = {japanese} を付ける (出力に "(in Japanese)" が付く。BibTeX の
+%     language フィールドは pandoc に捨てられて効かない)
+%   - 題の固有名詞は波括弧で保護する (保護しないと pandoc がセンテンスケースへ正規化する)
+%
+% 【この 3 件が受け持つ検証】
+%   yokan2099    … 和文論文 (langid で "(in Japanese)" を発火させる)
+%   chokkan2100  … 著者 4 名 (先頭 3 名 + et al の発火)。英語の文献なのに langid = {english} を
+%                  持つ (書誌管理ソフトの書き出しに多い形。lint が要修正を出し、出力には "(in Japanese)" が付く)
+%   dan2099      … 著者 3 名 (全員列挙されること)
+%
+% 引用様式そのものの受入テストは別のフィクスチャが持つ:
+%   data/dummy/bhi-csl/ + bash scripts/check-csl.sh (規定の公式例 5 件と 1 文字ずつ照合)
+
+% --- 和文論文 (langid で "(in Japanese)" を発火させる) ---
+@article{yokan2099,
+  author  = {Yokan, T. and Chokkan, H. and Dan, B.},
+  title   = {A memorandum on the contents of last night's dream},
+  journal = {Jpn J Tremendous Hunch},
+  year    = {2099},
+  volume  = {1},
+  pages   = {1--8},
+  langid  = {japanese}
+}
+
+% --- 英文論文 (著者 4 名以上 = et al 発火) ---
+@article{chokkan2100,
+  author  = {Chokkan, H. and Dan, B. and Yokan, T. and Uwanosora, M.},
+  title   = {Qualitative evaluation of remarks made at a drinking party},
+  journal = {Int J Vibes Res},
+  year    = {2100},
+  volume  = {2},
+  pages   = {31--40},
+  langid  = {english}
+}
+
+% --- 英文論文 (著者 3 名 = 全員列挙) ---
+@article{dan2099,
+  author  = {Dan, B. and Yokan, T. and Chokkan, H.},
+  title   = {Toward a dimensional analysis of cold sweat},
+  journal = {Stud Hunch Technol Inform},
+  year    = {2099},
+  volume  = {7},
+  pages   = {215--219}
+}

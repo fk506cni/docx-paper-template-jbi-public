@@ -1,0 +1,54 @@
+# defaults.yaml — pandoc 共通設定 (build / diff 共用)
+#
+# 役割: 雑誌に依存しない「読み込みオプション」「pandoc-crossref メタ」「文書既定メタ」を 1 か所に集約する。
+# build (step02) / diff (step03) の両方が `--defaults main/00_setup/defaults.yaml` で読み込む。
+#
+# 【フィルタは敢えてここに書かない】
+#   フィルタ適用順 (crossref → generic-style → citeproc → [color-diff]) を呼び出し側で厳密に制御し、
+#   かつ build/diff で citeproc を二重実行しないため、フィルタは各スクリプト (build.sh / diff.sh) の
+#   コマンドラインで明示する (docs/architecture.md §2.2 / §2.3 の pandoc 呼び出し例に一致)。
+#   - build: --filter pandoc-crossref --lua-filter generic-style.lua --citeproc
+#   - diff : 上記 + --lua-filter color-diff.lua (最後)
+#
+# 【reference-doc / csl / bibliography もここに書かない】
+#   雑誌プロファイル (data/journals/<id>/) ごとに切り替わるため、呼び出し側で渡す。
+
+# --- 入力 (reader) ---
+from: markdown+east_asian_line_breaks
+
+# --- 文書既定メタ (雑誌・原稿側で上書き可) ---
+metadata:
+  lang: en-US
+  # body-style: 本文段落を包む custom-style 名。未設定なら generic-style.lua は本文 Para を包まず、
+  #   reference.docx の Normal が体裁を担う (_default = 汎用投稿フォーマットはこの方式)。
+  #   雑誌テンプレが固有の本文段落スタイルを要求する場合のみ profile/原稿側で設定する。
+  # body-style: ""
+
+  # --- pandoc-crossref メタ (図表・式・節の相互参照番号) ---
+  # 参照は本文で [@fig:foo] / [@tbl:bar] / [@eq:baz] 形式 (CJK では角括弧必須)。
+  figureTitle: "Figure"
+  tableTitle: "Table"
+  listingTitle: "Listing"
+  figPrefix: ["Fig.", "Figs."]
+  tblPrefix: ["Table", "Tables"]
+  eqnPrefix: ["Eq.", "Eqs."]
+  secPrefix: ["Section", "Sections"]
+  # 番号書式: "Figure 1: caption" 形式 (titleDelim でキャプション区切り)
+  titleDelim: ":"
+  # 相互参照をハイパーリンク化し、prefix をリンク内に含める
+  linkReferences: true
+  nameInLink: true
+  # cref (clever ref) は使わない / 章扱いにしない / 式の自動ラベルは付けない
+  cref: false
+  chapters: false
+  autoEqnLabels: false
+  # 節番号は雑誌書式に委ねる (本文側で付けない)
+  numberSections: false
+
+  # --- citeproc 文献リストの見出し ---
+  # (citeproc は build.sh/diff.sh のコマンドラインで有効化する。見出し語のみここで既定化)
+  reference-section-title: "References"
+
+# --- 書き出し (writer) 共通 ---
+# 図のキャプションは crossref が "Figure 1:" を付けるので pandoc 側の自動採番は使わない
+# (二重採番防止)。雑誌が figure 番号書式を変える場合は profile.numbering.figure で吸収する。

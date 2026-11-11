@@ -1,0 +1,28 @@
+# data/dummy/bhi-csl/expected.txt — bhi.csl の期待出力 (文献リスト)
+#
+# 出典: 投稿規定 "For Authors" (https://biohealth-informatics.com/for-authors/。PDF 版 p.11) の "References" の Examples 1〜5 を
+#       そのまま転記したもの (行頭の番号を除く)。6 行目のみ本テンプレ側で足した et al 検証用。
+# 突合: bash scripts/check-csl.sh  (main/step02_build/check_csl.py が 1 文字ずつ比較する)
+#
+# 書式: `#` 始まりと空行はコメント。それ以外の 1 行 = 文献リストの 1 エントリ (番号は行順)。
+# 注意: ページ範囲の区切りは en dash (U+2013)。ハイフンに直さないこと。
+
+Mulford DK, Dawson AE. Atypia in fine-needle aspiration cytology of nonpalpable and palpable mammographically detected breast lesions. Acta Cytol 1994; 38:9–17.
+Nakajima T. Tabular analysis of 10 000 cases of gastric cancer in the Cancer Institute Hospital. Jpn J Cancer Chemother 1994; 21:1813–97. (in Japanese)
+Mitchell AJ, Vaze A, Rao S. Clinical diagnosis of depression in primary care: a meta-analysis. Lancet 2009; doi: 10.1016/S0140-6736(09)60879-5.
+Watanabe H, Jass JR, Sobin LH. Histopathological typing of oesophageal and gastric tumours, 2nd ed. Berlin Heidelberg New York: Springer; 1990. p. 23.
+Doe J. Title of subordinate document. In: The dictionary of substances and their effects. Royal Society of Chemistry. 1999. http://www.rsc.org/dose/title of subordinate document. Accessed 15 Jan 1999.
+
+# 6 件目は規定の例ではなく、本テンプレが足した et al 発火の検証用 (著者 4 名)。
+# 6〜9 件目の字面は TJD/THS のパロディ (構造は検証に必要な形)。
+# **1〜5 件目は規定からの逐語転記である。**
+# 「先頭 3 名 + et al」「巻(号):ページ」「巻ページがあるとき DOI を出さない」を同時に見る。
+# 号 (2) の出力と DOI の抑制は規定・公式例に例が無い実装判断 (docs/journal-bhi.md §3.2)。この 6 件目は
+# 実装の出力に合わせた期待値なので、一次資料からの逐語転記である 1〜5 件目と違い期待値の独立性は無い。
+Yokan T, Chokkan H, Dan B, et al. Evaluation of a hunch quantification apparatus in one laboratory room. J Hunch Inform 2099; 41(2):105–12.
+
+# 7〜9 件目は公式例に無い文献型の回帰ガード。規定の逐語転記ではなく、実装が
+# ページ番号 (章・学会論文) と DOI (データセット) を落とさないことを固定するための期待値である。
+Tremendo H, Hunchshire K. A chapter on cold sweat collection in field apparatus. In: Handbook of hunch engineering. Tremendo: Hunch Press. 2099. p. 101–20.
+Vibes T, Dan B. Real-time sighing detection at the laboratory bench. In: Proceedings of the Hunch Informatics Congress 2100. Vibeston: Vibes Press. 2100. p. 55–60.
+Yokan T. Dataset of twenty tremendous trials. Hunchnodo. 2101. doi: 10.0000/tjd.0000001.

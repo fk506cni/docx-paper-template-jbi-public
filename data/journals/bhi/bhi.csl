@@ -1,0 +1,323 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  bhi.csl — BioHealth Informatics (BHI) 引用スタイル (雑誌の公式ではない。本テンプレートが規定の出力例を再現するために書いた)
+
+  出典: 投稿規定 "For Authors" の "References" 節 (2026-07-22 取得の PDF 版 p.11 で作り、2026-11 の公開ページと照合) /
+        https://biohealth-informatics.com/for-authors/
+        規定の文面だけでは決まらず本テンプレートが決めた点は、下の [扱い] 印の項目
+  対応表: docs/journal-bhi.md §3 / §3.1 (公式の出力例 5 件)
+  受入テスト: bash scripts/check-csl.sh (data/dummy/bhi-csl/ と突合)
+
+  _default.csl (AMA 11th) との差分 (すべて規定に根拠あり):
+    - 本文中の引用が `1)` ごと上付き (AMA は数字のみ上付き・括弧なし)        [扱い]
+    - 著者は先頭 3 名まで、4 名以上で "et al" (AMA は 7 名以上で et al)
+    - "et al" にピリオドを付けない (規定原文 add "et al")
+    - page-range-format="minimal-two" (AMA は expanded)                      [出力例 2]
+    - ページ範囲の区切りは en dash (AMA は locale 上書きでハイフン)
+    - 誌名・書名をイタリックにしない (規定 p.11 の例 5 件がすべて立体)
+    - 誌名の後にピリオドを打たず " 年; 巻:ページ." と続ける
+
+  実装上の判断 (規定に明記が無く、公式例 5 件から読み取った点):
+    - DOI は 巻/号/ページ が【無い】ときだけ出す (規定 "For papers cited only by DOI"
+      と例 1/2 に DOI が無いことから。巻ページと DOI の併記は例に存在しない)
+    - 号 (issue) は `巻(号):ページ` の Vancouver 既定に従って出す (例には号を持つ
+      文献が無く規定も無言。出しても規定に反する記述は無い)
+    - 複数引用・連続引用の書式は規定に無い。実出力は docs/journal-bhi.md §3.2 に記録
+    - 和文論文の "(in Japanese)" は CSL 変数 `language` の【存在】で発火する (値は比べられない)。
+      英語文献に language を書かないこと (書くと言語によらず "(in Japanese)" が出る。pandoc は
+      BibTeX の langid を language に写すので、書誌管理ソフトが付けた langid = {english} も消す)
+-->
+<style xmlns="http://purl.org/net/xbiblio/csl" class="in-text" version="1.0"
+       default-locale="en-US"
+       page-range-format="minimal-two"
+       demote-non-dropping-particle="sort-only"
+       initialize-with="" initialize-with-hyphen="false"
+       name-as-sort-order="all" name-delimiter=", " sort-separator=" ">
+  <info>
+    <title>BioHealth Informatics (unofficial)</title>
+    <title-short>BHI</title-short>
+    <id>https://github.com/fk506cni/docx-paper-template-jbi-public/blob/main/data/journals/bhi/bhi.csl</id>
+    <link href="https://github.com/fk506cni/docx-paper-template-jbi-public/blob/main/data/journals/bhi/bhi.csl" rel="self"/>
+    <link href="http://www.zotero.org/styles/american-medical-association" rel="template"/>
+    <link href="https://biohealth-informatics.com/for-authors/" rel="documentation"/>
+    <contributor>
+      <name>Julian Onions</name>
+      <uri>https://orcid.org/0000-0001-5192-6856</uri>
+    </contributor>
+    <contributor>
+      <name>Christian Pietsch</name>
+      <uri>https://orcid.org/0000-0001-8778-1273</uri>
+    </contributor>
+    <contributor>
+      <name>Daniel W. Chan</name>
+      <uri>https://orcid.org/0000-0002-8082-2316</uri>
+    </contributor>
+    <contributor>
+      <name>Patrick O'Brien</name>
+    </contributor>
+    <contributor>
+      <name>Andrew Dunning</name>
+      <uri>https://orcid.org/0000-0003-0464-5036</uri>
+    </contributor>
+    <category citation-format="numeric"/>
+    <category field="medicine"/>
+    <summary>Unofficial style written to reproduce the reference examples in the author
+    guidelines of BioHealth Informatics (Japan Association for Medical Informatics). It is
+    not provided or reviewed by the journal. Adapted from the AMA Manual of Style 11th edition
+    style (see the template link; its authors and contributors are listed above):
+    superscript citation number followed by a superscript closing parenthesis, first three
+    authors then "et al", Index Medicus journal abbreviations, abbreviated end page.</summary>
+    <updated>2026-11-10T00:00:00+00:00</updated>
+    <rights license="http://creativecommons.org/licenses/by-sa/3.0/">This work is licensed
+    under a Creative Commons Attribution-ShareAlike 3.0 License</rights>
+  </info>
+
+  <locale xml:lang="en">
+    <terms>
+      <!-- 規定原文は add "et al" (ピリオド無し) -->
+      <term name="et-al">et al</term>
+      <!-- 公式例 4 は "2nd ed." — ピリオドは group の suffix 側で 1 個だけ付ける -->
+      <term name="edition" form="short">ed</term>
+      <!-- 公式例 1/2 は 9–17 / 1813–97 (en dash) -->
+      <term name="page-range-delimiter">–</term>
+    </terms>
+  </locale>
+
+  <!-- ================= マクロ ================= -->
+
+  <macro name="author">
+    <names variable="author">
+      <name/>
+      <label form="short" prefix=", " strip-periods="true"/>
+      <substitute>
+        <names variable="editor"/>
+        <names variable="translator"/>
+        <text macro="title"/>
+      </substitute>
+    </names>
+  </macro>
+
+  <!-- 論題・書名。規定の例はすべて立体 (イタリックにしない)。
+       大文字小文字は bib の入力をそのまま使う (text-case を当てて固有名詞を壊さない) -->
+  <macro name="title">
+    <text variable="title"/>
+  </macro>
+
+  <!-- 誌名: Index Medicus 略誌名。form="short" は journalAbbreviation が無ければ
+       container-title にフォールバックする (bib の journal を略記で持つ運用) -->
+  <macro name="container-short">
+    <text variable="container-title" form="short" strip-periods="true"/>
+  </macro>
+
+  <macro name="year">
+    <date variable="issued" form="numeric" date-parts="year"/>
+  </macro>
+
+  <!-- 巻(号):ページ。無いときだけ doi: に落ちる (公式例 3) -->
+  <macro name="journal-locator">
+    <choose>
+      <if match="any" variable="volume issue page">
+        <group delimiter=":">
+          <group>
+            <text variable="volume"/>
+            <text variable="issue" prefix="(" suffix=")"/>
+          </group>
+          <text variable="page"/>
+        </group>
+      </if>
+      <else-if variable="DOI">
+        <text variable="DOI" prefix="doi: "/>
+      </else-if>
+    </choose>
+  </macro>
+
+  <!-- 公式例 1: Acta Cytol 1994; 38:9–17.   公式例 3: Lancet 2009; doi: 10.1016/…. -->
+  <macro name="journal-part">
+    <group delimiter="; " suffix=".">
+      <group delimiter=" ">
+        <text macro="container-short"/>
+        <text macro="year"/>
+      </group>
+      <text macro="journal-locator"/>
+    </group>
+  </macro>
+
+  <macro name="edition">
+    <group delimiter=" ">
+      <number variable="edition" form="ordinal"/>
+      <text term="edition" form="short"/>
+    </group>
+  </macro>
+
+  <!-- 公式例 4: … gastric tumours, 2nd ed.  (書名と版はカンマ区切り) -->
+  <macro name="title-with-edition">
+    <group delimiter=", " suffix=".">
+      <text macro="title"/>
+      <text macro="edition"/>
+    </group>
+  </macro>
+
+  <!-- 公式例 4: Berlin Heidelberg New York: Springer; 1990. -->
+  <macro name="publisher-part">
+    <group delimiter="; " suffix=".">
+      <group delimiter=": ">
+        <text variable="publisher-place"/>
+        <text variable="publisher"/>
+      </group>
+      <text macro="year"/>
+    </group>
+  </macro>
+
+  <!-- 公式例 4: p. 23. -->
+  <macro name="book-pages">
+    <group prefix="p. " suffix=".">
+      <text variable="page"/>
+    </group>
+  </macro>
+
+  <!-- 公式例 5: http://… Accessed 15 Jan 1999. -->
+  <macro name="access">
+    <group delimiter=". " suffix=".">
+      <text variable="URL"/>
+      <group delimiter=" ">
+        <text term="accessed" text-case="capitalize-first"/>
+        <date variable="accessed" delimiter=" ">
+          <date-part name="day"/>
+          <date-part name="month" form="short" strip-periods="true"/>
+          <date-part name="year"/>
+        </date>
+      </group>
+    </group>
+  </macro>
+
+  <!-- 公式例 5: In: 収録先. 発行主体. 年. URL. Accessed 日付.
+       章 (chapter) / 学会論文 (paper-conference) / データセット等も
+       この else 経路を通る。規定「Provide inclusive page numbers for all references」を満たすため
+       ページ (book-pages) と DOI をここで出す。公式例5 (doe1999) は page/DOI を持たないので
+       これらの group は空になり citeproc に抑制される = 出力バイト不変。 -->
+  <macro name="online-part">
+    <group delimiter=" ">
+      <group delimiter=": " suffix=".">
+        <text term="in" text-case="capitalize-first"/>
+        <text variable="container-title"/>
+      </group>
+      <group suffix=".">
+        <group delimiter=": ">
+          <text variable="publisher-place"/>
+          <text variable="publisher"/>
+        </group>
+      </group>
+      <group suffix=".">
+        <text macro="year"/>
+      </group>
+      <text macro="book-pages"/>
+      <group prefix="doi: " suffix=".">
+        <text variable="DOI"/>
+      </group>
+      <text macro="access"/>
+    </group>
+  </macro>
+
+  <!--
+    公式例 2: 末尾の (in Japanese)。
+
+    発火条件は 2 つ (実測。pandoc 3.6.4 の BibTeX 読み取り仕様に合わせた):
+      1. bib の `langid = {japanese}` … pandoc が CSL 変数 language ("ja-JP") に写す。
+         BibTeX の `language` フィールドは pandoc に【捨てられる】ので使えない。
+         langid は同時に「英語のセンテンスケース変換」も止めるため、和文論文の
+         題の大文字小文字が壊れなくなる (この 1 個で 2 つの用が足りる)。
+         ただし CSL は変数の値を比較できないため、language があれば言語によらず
+         "(in Japanese)" になる。和文以外の非英語文献では下の note を使うこと。
+      2. bib の `note = {in German}` … 任意の文字列をそのまま括弧に入れる (明示指定が優先)。
+         note は文献リスト末尾に必ず出るので、書誌管理ソフトの控えを note に
+         入れたままにしないこと。
+    CSL は locale ごとの複数 layout を書ければ厳密に判定できるが、pandoc 同梱の
+    citeproc は "Multiple layout elements present in bibliography" で拒否する (実測)。
+  -->
+  <macro name="language-note">
+    <choose>
+      <if variable="note">
+        <text variable="note" prefix="(" suffix=")"/>
+      </if>
+      <else-if variable="language">
+        <text value="(in Japanese)"/>
+      </else-if>
+    </choose>
+  </macro>
+
+  <!-- ================= 本文中の引用 ================= -->
+  <!--
+    [扱い] 上付き数字 + 上付きの閉じ括弧 (`1)` を丸ごと上付き)。
+
+    閉じ括弧は cs:layout の suffix に置く。pandoc 3.6.4 同梱の citeproc では
+    書式の掛かり方が要素によって違うことを実測した:
+      - cs:text の prefix/suffix … その要素の vertical-align が【乗らない】
+        (`<text variable="citation-number" vertical-align="sup" suffix=")"/>` は
+         数字だけ上付きになり、閉じ括弧がベースラインに落ちる = 規定違反)
+      - cs:layout の suffix     … layout の vertical-align が【乗る】
+        (引用グループ全体が 1 つの上付き run になる。docx の w:vertAlign で確認済み)
+    さらに suffix はグループ末尾に 1 回だけ付くので、閉じ括弧を各引用に配る実装と違って
+    collapse="citation-number" による連続番号のまとめが効く。実出力 (実測):
+      [@a]                -> 1)          [@a; @d]      -> 1,4)
+      [@a; @b; @c]        -> 1–3)        [@d, p. 23]   -> 4, p. 23)
+    複数引用・範囲引用の書式は規定に記述が無い。実出力は docs/journal-bhi.md §3.2 に記録し、
+    必要になった時点で編集事務局に確かめる。
+    受入テスト: scripts/check-csl.sh に docx を渡すと閉じ括弧の上付きを実測する
+    (XML のコメントには二重ハイフンを書けないので、オプション名は scripts/check-csl.sh の冒頭を参照)。
+  -->
+  <citation collapse="citation-number">
+    <sort>
+      <key variable="citation-number"/>
+    </sort>
+    <layout delimiter="," vertical-align="sup" suffix=")">
+      <group delimiter=", ">
+        <text variable="citation-number"/>
+        <group delimiter=" ">
+          <label variable="locator" form="short"/>
+          <text variable="locator"/>
+        </group>
+      </group>
+    </layout>
+  </citation>
+
+  <!-- ================= 文献リスト ================= -->
+  <bibliography et-al-min="4" et-al-use-first="3" second-field-align="flush">
+    <layout>
+      <text variable="citation-number" suffix="."/>
+      <group delimiter=" ">
+        <group suffix=".">
+          <text macro="author"/>
+        </group>
+        <choose>
+          <!-- 書籍・報告書・学位論文など (公式例 4) -->
+          <if match="any" type="book report thesis manuscript map graphic motion_picture song">
+            <group delimiter=" ">
+              <text macro="title-with-edition"/>
+              <text macro="publisher-part"/>
+              <text macro="book-pages"/>
+            </group>
+          </if>
+          <!-- 雑誌論文 (公式例 1 / 2 / 3) -->
+          <else-if match="any" type="article-journal article-magazine article-newspaper article review review-book periodical">
+            <group delimiter=" ">
+              <group suffix=".">
+                <text macro="title"/>
+              </group>
+              <text macro="journal-part"/>
+            </group>
+          </else-if>
+          <!-- 収録物・オンライン資料など (公式例 5) -->
+          <else>
+            <group delimiter=" ">
+              <group suffix=".">
+                <text macro="title"/>
+              </group>
+              <text macro="online-part"/>
+            </group>
+          </else>
+        </choose>
+        <text macro="language-note"/>
+      </group>
+    </layout>
+  </bibliography>
+</style>

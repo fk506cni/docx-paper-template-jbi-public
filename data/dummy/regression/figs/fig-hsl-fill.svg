@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- 回帰フィクスチャ (合成): 塗りの色を hsl() で書いた SVG。
+     Word / PowerPoint (Microsoft 365) は hsl() の色の図形を黒く塗る (CSS のクラスでも fill 属性でも同じ)。
+     Mermaid でテーマの色を変えたときにサブグラフの枠がこの形で出る。CSS の規則と fill 属性の両方を持たせ、
+     図に描かれない background の hsl() (Mermaid の既定テーマのツールチップと同じ形) も置いてある
+     (こちらは数えない)。check-figures の図ツリー検査で注意が 1 件 (2 箇所) 出るのが正しい。
+     本文からは参照しない (docx の回帰に影響させないため)。 -->
+<svg xmlns="http://www.w3.org/2000/svg" width="80mm" height="30mm" viewBox="0 0 80 30">
+  <style>
+    .panel rect { fill: hsl(24, 76.9230769231%, 99.9019607843%); stroke: #888888; stroke-width: 0.3; }
+    div.tooltip { background: hsl(80, 100%, 96.2745098039%); }
+  </style>
+  <g class="panel"><rect x="2" y="2" width="36" height="26"/></g>
+  <rect x="42" y="2" width="36" height="26" fill="hsl(84, 76.9230769231%, 94.9019607843%)" stroke="#888888" stroke-width="0.3"/>
+  <text x="6" y="17" font-family="sans-serif" font-size="5">Panel A</text>
+  <text x="46" y="17" font-family="sans-serif" font-size="5">Panel B</text>
+</svg>

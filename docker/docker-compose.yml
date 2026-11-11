@@ -1,0 +1,35 @@
+# docx-paper-template — 主変換 (pandoc) コンテナの compose 定義
+# 配置: docker/docker-compose.yml (context は同階層 ./pandoc、volume は repo ルート ..)
+# 変換専用 (常駐サーバなし) のため ports は公開しない。
+#
+# 使い方:
+#   docker compose -f docker/docker-compose.yml build
+#   docker compose -f docker/docker-compose.yml run --rm -u "$(id -u):$(id -g)" pandoc pandoc --version
+#
+# 注意: 生成物の所有権をホストユーザに保つため、run 時には必ず
+#   -u "$(id -u):$(id -g)" を付ける。付け忘れると data/ 配下の生成物が root 所有になり、
+#   後段で削除・上書きできず手戻りになる。後続ステップの scripts/build.sh 等は -u を既定で付ける。
+#
+# プロジェクト名を明示する (既定だと親ディレクトリ名 "docker" になり、他プロジェクトの
+# compose と衝突して orphan containers 警告が出るため)。
+name: docx-paper-template
+services:
+  pandoc:
+    build:
+      context: ./pandoc
+      dockerfile: Dockerfile
+      # 版固定の ARG は Dockerfile 既定値を使う。上書きする場合のみ以下を有効化:
+      # args:
+      #   PANDOC_VERSION: "3.6.4"
+      #   CROSSREF_VERSION: "0.3.19"
+      #   PANFLUTE_VERSION: "2.3.1"
+      #   LXML_VERSION: "5.3.0"
+    image: docx-paper-template-pandoc
+    volumes:
+      - ..:/workspace
+    working_dir: /workspace
+    environment:
+      # HOME を書込可能な /tmp に向ける (生成物所有権を -u 指定のホストユーザに保つため、
+      # pandoc/python の一時ファイルが $HOME を要求しても失敗しないようにする)
+      - HOME=/tmp
+    # ports: なし (変換専用)。将来サーバ用途を足す場合のみ "127.0.0.1:PORT:PORT" を付ける。

@@ -1,0 +1,50 @@
+# profile.yaml — _default (汎用投稿フォーマット)
+#
+# 雑誌がテンプレートを提供しない場合の既定プロファイル。多くの英文誌の初回投稿要件
+# (ダブルスペース + 連続行番号 + Times 相当 12pt + 標準余白) に合わせる (docs/architecture.md §3)。
+# 新規投稿先はこのディレクトリを複製し、値を差し替えて作る。
+#
+# reference.docx は make-reference.sh で再生成できる (pandoc 既定 docx + patch_reference_docx.py)。
+# ここの体裁値 (line_spacing/line_numbers/font/margins) は reference.docx と一致させること。
+
+name: "Generic submission format (default)"
+
+# 引用スタイル: AMA Manual of Style 11th edition (Vancouver 系の番号引用)。雑誌指定があれば差し替える。
+csl: _default.csl
+
+# テンプレート docx (本ファイルと同階層のファイル名)。null なら _default の reference.docx を継ぎ、継いだことを警告する。
+reference_doc: reference.docx
+
+# --- 体裁 (reference.docx に焼き込み済み。make-reference.sh の引数と一致) ---
+line_spacing: double          # single / 1.5 / double
+line_numbers: continuous      # none / continuous / per-page
+font: "Times New Roman"
+font_size: 12pt
+margins: 25mm
+paper_size: a4                # a4 / letter (reference.docx に焼込済。make-reference.sh の --paper と一致)
+
+# --- 図 ---
+figures:
+  embed: true                 # 草稿は docx 埋込 (true)。最終分離は step05 で false に切替
+  formats: [pdf]              # 最終提出で要求される形式 (先頭が使われる)。生成できるのは pdf / png / pptx。
+                              #   tiff は png、eps は pdf で代替する (ネイティブの経路は無い)
+  dpi: 300                    # ラスタ図 / PNG フォールバックの解像度
+  font_handling: outline      # 最終図 svg→pdf のフォント処理 (outline=text-to-path / embed)
+  placement: inline           # 予約キー (どのコードも読まない)。表の末尾移設は tables.placement、
+                              #   図の題と凡例の集約は figures.legends_section で指定する
+
+# --- 語数等の上限 (検証補助。最終判断は実物で) ---
+limits:
+  word_count: null            # 本文語数上限 (汎用は無指定)
+  abstract_words: 250
+  references: null
+
+# --- 体裁オプション (実投稿規定差の吸収。初期実装で全て満たす必要はない) ---
+blinded: false                # 匿名版 (著者・所属を伏せる) を生成するか
+abstract:
+  structured: false           # 構造化抄録 (背景/方法/結果/結論) か
+
+# --- 番号書式 ---
+numbering:
+  figure: "Figure %d."
+  table: "Table %d."

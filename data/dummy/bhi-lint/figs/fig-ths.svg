@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- data/dummy/bhi/figs/fig-ths.svg — BHI 骨格ダミーの図 2 (条件別の平均 THS)。
+     内容は明らかなフィクション。
+     凡例キーを画像内に入れる規定 (figures.keys_in_graphic) の実演も兼ねる。
+
+     物理単位で書く理由は fig-apparatus.svg の注記と同じ。152x80mm は本文幅 160mm に収まり、
+     viewBox 380x200 (= 19:10) と 152:80 (= 19:10) が一致するので描画内容も縦横比も変わらない。 -->
+<svg xmlns="http://www.w3.org/2000/svg" width="152mm" height="80mm" viewBox="0 0 380 200" font-family="Arial, sans-serif">
+  <rect x="0.5" y="0.5" width="379" height="199" fill="#ffffff" stroke="#cccccc"/>
+
+  <!-- axes -->
+  <line x1="56" y1="20" x2="56" y2="150" stroke="#444444" stroke-width="1"/>
+  <line x1="56" y1="150" x2="356" y2="150" stroke="#444444" stroke-width="1"/>
+
+  <!-- y ticks: 0 to 4 tsu -->
+  <text x="50" y="154" font-size="10" text-anchor="end" fill="#1a1a1a">0</text>
+  <line x1="52" y1="150" x2="56" y2="150" stroke="#444444"/>
+  <text x="50" y="121" font-size="10" text-anchor="end" fill="#1a1a1a">1</text>
+  <line x1="52" y1="117.5" x2="56" y2="117.5" stroke="#444444"/>
+  <text x="50" y="89" font-size="10" text-anchor="end" fill="#1a1a1a">2</text>
+  <line x1="52" y1="85" x2="56" y2="85" stroke="#444444"/>
+  <text x="50" y="56" font-size="10" text-anchor="end" fill="#1a1a1a">3</text>
+  <line x1="52" y1="52.5" x2="56" y2="52.5" stroke="#444444"/>
+  <text x="50" y="24" font-size="10" text-anchor="end" fill="#1a1a1a">4</text>
+  <line x1="52" y1="20" x2="56" y2="20" stroke="#444444"/>
+  <text x="18" y="90" font-size="11" text-anchor="middle" fill="#1a1a1a" transform="rotate(-90 18 90)">Mean THS (tsu)</text>
+
+  <!-- bar 1: staring 2.6 -->
+  <rect x="86" y="65.5" width="56" height="84.5" fill="#e6f4ea" stroke="#137333"/>
+  <line x1="114" y1="52.5" x2="114" y2="78.5" stroke="#137333" stroke-width="1.2"/>
+  <line x1="108" y1="52.5" x2="120" y2="52.5" stroke="#137333" stroke-width="1.2"/>
+  <line x1="108" y1="78.5" x2="120" y2="78.5" stroke="#137333" stroke-width="1.2"/>
+  <text x="114" y="46" font-size="10" text-anchor="middle" fill="#1a1a1a">2.6</text>
+  <text x="114" y="165" font-size="10" text-anchor="middle" fill="#1a1a1a">staring</text>
+  <text x="114" y="177" font-size="9" text-anchor="middle" fill="#666666">(12 trials)</text>
+
+  <!-- bar 2: gentle touch 1.2 -->
+  <rect x="172" y="111" width="56" height="39" fill="#e8f0fe" stroke="#2E74B5"/>
+  <line x1="200" y1="105" x2="200" y2="117" stroke="#2E74B5" stroke-width="1.2"/>
+  <line x1="194" y1="105" x2="206" y2="105" stroke="#2E74B5" stroke-width="1.2"/>
+  <line x1="194" y1="117" x2="206" y2="117" stroke="#2E74B5" stroke-width="1.2"/>
+  <text x="200" y="99" font-size="10" text-anchor="middle" fill="#1a1a1a">1.2</text>
+  <text x="200" y="165" font-size="10" text-anchor="middle" fill="#1a1a1a">gentle touch</text>
+  <text x="200" y="177" font-size="9" text-anchor="middle" fill="#666666">(5 trials)</text>
+
+  <!-- bar 3: looking away 0.3 -->
+  <rect x="258" y="140.3" width="56" height="9.7" fill="#e8f0fe" stroke="#2E74B5"/>
+  <line x1="286" y1="138.8" x2="286" y2="141.8" stroke="#2E74B5" stroke-width="1.2"/>
+  <line x1="280" y1="138.8" x2="292" y2="138.8" stroke="#2E74B5" stroke-width="1.2"/>
+  <line x1="280" y1="141.8" x2="292" y2="141.8" stroke="#2E74B5" stroke-width="1.2"/>
+  <text x="286" y="133" font-size="10" text-anchor="middle" fill="#1a1a1a">0.3</text>
+  <text x="286" y="165" font-size="10" text-anchor="middle" fill="#1a1a1a">looking away</text>
+  <text x="286" y="177" font-size="9" text-anchor="middle" fill="#666666">(3 trials)</text>
+
+  <text x="206" y="193" font-size="9" text-anchor="middle" fill="#666666">whiskers: assumed error margin of plus or minus 500%</text>
+</svg>

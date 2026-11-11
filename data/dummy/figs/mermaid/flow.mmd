@@ -1,0 +1,15 @@
+%% data/dummy/figs/mermaid/flow.mmd — Mermaid 作図ソース (一次ソース)
+%% ビルドの図前処理が docker/mermaid/convert.sh で flow.svg / flow.pdf に変換し、本文は figs/mermaid/flow.svg を参照する。
+%% この場所で単独に描かないこと (残った flow.svg / flow.pdf は前処理が読み飛ばして警告する)。
+%% 生成 svg/pdf は再生成可能なので、原稿は .mmd を一次ソースとして扱う。
+%% 内容は明らかなフィクション (TJD/THS のパロディ)。
+%% 規模はノード 9 個・辺 8 本。
+flowchart LR
+    SUB["subject"] --> APP["apparatus body"]
+    SEN["three sensors"] --> LOG["trial logger"]
+    SIGH["exasperation mic"] --> SCO["sigh scorer"]
+    SCO --> LOG
+    APP --> SEN
+    LOG --> COMB["combination rule"]
+    COMB --> DISP["tremendous output display"]
+    DISP --> ARCH["stored trial record"]
