@@ -1,0 +1,17 @@
+# docx-paper-template — Docker build context 除外リスト
+# svg-conversion は build context にリポジトリルートを使うが、必要なのは
+# fonts/ と docker/svg-conversion/{Dockerfile,mscorefonts.sha256} のみ。
+# 肥大しうる / 無関係なディレクトリを送信対象から外し、context を小さく保つ。
+# (mermaid は context=docker/mermaid、pandoc は context=docker/pandoc のため本ファイルの影響外)
+.git
+.gitignore
+.development
+data/
+docs/
+jank/
+logs/
+main/
+scripts/
+src/
+*.md
+cspell.json

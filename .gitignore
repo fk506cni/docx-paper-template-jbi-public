@@ -1,0 +1,64 @@
+# docx-paper-template-jbi — .gitignore
+#
+# Your manuscript lives in src/ and is meant to be committed. Everything the pipeline
+# generates goes under data/ (or jank/) and is ignored here.
+
+# --- Input-root marker (present: data/dummy/ is the input; absent: src/) ---
+.development
+
+# --- Generated files of each pipeline stage ---
+data/step*/*
+!data/step*/.gitkeep
+data/output/*
+!data/output/.gitkeep
+data/products/*
+!data/products/.gitkeep
+
+# --- Production material you do not want in git (scans, raw data, ...) ---
+data/source/*
+!data/source/.gitkeep
+
+# --- Reference documents of the bundled profiles ---
+# build.sh / diff.sh generate them from pandoc's default data and profile.yaml when they are
+# missing (see THIRD_PARTY_NOTICES.md). A reference.docx of a journal you add yourself, such as
+# one a publisher provides, is not ignored.
+data/journals/_default/reference.docx
+data/journals/bhi/reference.docx
+
+# --- Temporary base file of make-reference.sh (left behind only if it is interrupted) ---
+data/journals/*/.base-reference.docx
+
+# --- PNG fallbacks generated from SVG figures ---
+*.svg.png
+
+# --- Mermaid output (regenerated from the .mmd source) ---
+src/figs/mermaid/*.svg
+src/figs/mermaid/*.pdf
+data/dummy/figs/mermaid/*.svg
+data/dummy/figs/mermaid/*.pdf
+
+# --- Proprietary fonts for the svg-conversion image (licensed per user; never commit) ---
+fonts/*
+!fonts/.gitkeep
+
+# --- Scratch space (diff.sh and the regression snapshots write here) ---
+jank/
+
+# --- Python ---
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+
+# --- Editors and OS ---
+.vscode/
+.idea/
+*.swp
+*~
+.DS_Store
+Thumbs.db
+
+# --- Local settings and secrets ---
+.env
+.env.local
+.claude/settings.local.json*

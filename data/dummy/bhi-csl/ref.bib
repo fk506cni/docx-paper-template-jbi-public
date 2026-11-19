@@ -1,0 +1,122 @@
+% data/dummy/bhi-csl/ref.bib — bhi.csl の受入テスト用フィクスチャ
+%
+% 規定 p.11 "References" の公式出力例 5 件を再現するための最小エントリ + et al 発火用 1 件
+% + 公式例に無い文献型 3 件。
+% **公式例 5 件 (a)〜(e) は規定からの逐語転記** (架空の字面にはしていない)。
+% パロディは (f)〜(i) の 4 件だけで、構造は検証に必要な形にしてある。
+% 期待出力は expected.txt。突合は `bash scripts/check-csl.sh`。
+%
+% 注意: 期待文字列と 1 文字ずつ突き合わせるフィクスチャなので、
+%   - 著者名は規定の例が示すイニシャルどおりに書く (フルネームは不明なため推測しない)
+%   - 例 1/2/4/5 には DOI を付けない (規定の例に DOI が出ていないため。bhi.csl は
+%     巻/号/ページを持つ文献では DOI を出さない)
+%   - 題の大文字小文字は pandoc が正規化する。固有名詞と、コロン直後を小文字に留めたい語は
+%     BibTeX の波括弧で保護する ({C}ancer ではなく {Cancer Institute Hospital} のように語ごと)
+%   - 和文論文には `langid = {japanese}` を付ける。BibTeX の `language` フィールドは
+%     pandoc に捨てられるので使えない (実測)。langid は "(in Japanese)" の発火と
+%     「英語のセンテンスケース変換の抑止」を兼ねる
+
+% --- (a) 著者 2 名の雑誌論文 = 公式例 1 ---
+@article{mulford1994,
+  author  = {Mulford, D. K. and Dawson, A. E.},
+  title   = {Atypia in fine-needle aspiration cytology of nonpalpable and palpable mammographically detected breast lesions},
+  journal = {Acta Cytol},
+  year    = {1994},
+  volume  = {38},
+  pages   = {9--17}
+}
+
+% --- (b) 和文論文 (langid つき) = 公式例 2。ページ短縮 1813--1897 -> 1813–97 の検証も兼ねる ---
+@article{nakajima1994,
+  author  = {Nakajima, T.},
+  title   = {Tabular analysis of 10 000 cases of gastric cancer in the Cancer Institute Hospital},
+  journal = {Jpn J Cancer Chemother},
+  year    = {1994},
+  volume  = {21},
+  pages   = {1813--1897},
+  langid  = {japanese}
+}
+
+% --- (c) DOI のみ (巻/ページ無し) = 公式例 3 ---
+@article{mitchell2009,
+  author  = {Mitchell, A. J. and Vaze, A. and Rao, S.},
+  title   = {Clinical diagnosis of depression in primary care: {a} meta-analysis},
+  journal = {Lancet},
+  year    = {2009},
+  doi     = {10.1016/S0140-6736(09)60879-5}
+}
+
+% --- (d) 書籍 (版・発行地・出版社・ページ) = 公式例 4 ---
+@book{watanabe1990,
+  author    = {Watanabe, H. and Jass, J. R. and Sobin, L. H.},
+  title     = {Histopathological typing of oesophageal and gastric tumours},
+  edition   = {2},
+  address   = {Berlin Heidelberg New York},
+  publisher = {Springer},
+  year      = {1990},
+  pages     = {23}
+}
+
+% --- (e) オンライン資料 (URL + accessed) = 公式例 5 ---
+@incollection{doe1999,
+  author    = {Doe, J.},
+  title     = {Title of subordinate document},
+  booktitle = {The dictionary of substances and their effects},
+  publisher = {Royal Society of Chemistry},
+  year      = {1999},
+  url       = {http://www.rsc.org/dose/title of subordinate document},
+  urldate   = {1999-01-15}
+}
+
+% --- (f) 著者 4 名以上 (et al の発火確認)。号つき・DOI 併記で「DOI を出さない」判断も検証する ---
+% 内容は TJD/THS のパロディ。**構造 (著者 4 名 / 巻・号・ページ / DOI 併記) が検証の対象**
+% — この 4 件が受け持つ検証はそこにある。公式例 1〜5 件 (上) は規定からの
+% 逐語転記である。
+@article{yokanEtAl2099,
+  author  = {Yokan, T. and Chokkan, H. and Dan, B. and Uwanosora, M.},
+  title   = {Evaluation of a hunch quantification apparatus in one laboratory room},
+  journal = {J Hunch Inform},
+  year    = {2099},
+  volume  = {41},
+  number  = {2},
+  pages   = {105--112},
+  doi     = {10.0000/jhi.2099.0105}
+}
+
+% === 公式例に無い文献型の回帰ガード ===================================================
+% 規定「Provide inclusive page numbers for all references」を、公式例 5 種以外でも守れるかの検証。
+% 期待値 (expected.txt の 7〜9 行目) は規定の逐語転記ではなく、実装が page/DOI を落とさないことを
+% 固定するための回帰ガードである (1〜5 行目の公式例とは性質が異なる)。
+
+% --- (g) 書籍の 1 章 (chapter)。ページがあり URL は無い。ページが落ちないことを見る ---
+@incollection{chapter2099,
+  author    = {Tremendo, H. and Hunchshire, K.},
+  title     = {A chapter on cold sweat collection in field apparatus},
+  booktitle = {Handbook of hunch engineering},
+  publisher = {Hunch Press},
+  address   = {Tremendo},
+  year      = {2099},
+  pages     = {101--120}
+}
+
+% --- (h) 学会発表論文 (paper-conference)。ページが落ちないことを見る ---
+@inproceedings{conf2100,
+  author    = {Vibes, T. and Dan, B.},
+  title     = {Real-time sighing detection at the laboratory bench},
+  % 固有名詞は波括弧で保護する (保護しないと pandoc がセンテンスケースへ正規化し、
+  % 'Proceedings of the hunch informatics congress' になる。実測)
+  booktitle = {Proceedings of the {Hunch Informatics Congress} 2100},
+  publisher = {Vibes Press},
+  address   = {Vibeston},
+  year      = {2100},
+  pages     = {55--60}
+}
+
+% --- (i) データセット (DOI つき, URL 無し)。DOI が落ちないことを見る ---
+@misc{dataset2101,
+  author    = {Yokan, T.},
+  title     = {Dataset of twenty tremendous trials},
+  publisher = {Hunchnodo},
+  year      = {2101},
+  doi       = {10.0000/tjd.0000001}
+}

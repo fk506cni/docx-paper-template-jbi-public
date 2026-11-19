@@ -1,0 +1,30 @@
+<?xml version='1.0' encoding='UTF-8' ?>
+<!-- 回帰フィクスチャ (合成): 同じ寸法の 2 パネルを連結し、clipPath の id が衝突した形。
+     svglite の id は座標から作るので、寸法を揃えた 2 つの出力を連結すると同じ id が 2 回現れる。
+     svglite の外枠 (`<g class='svglite'>`) は持たせていない (= 条件 (2) だけを踏む)。
+     check-figures の図ツリー検査で「SVG の連結に起因する崩れの疑い」が 1 件出るのが正しい。
+     本文からは参照しない (docx の回帰に影響させないため)。 -->
+<svg xmlns='http://www.w3.org/2000/svg' width='283.46pt' height='283.46pt' viewBox='0 0 283.46 283.46'>
+<g transform='translate(0,0)'>
+<defs>
+  <clipPath id='cpMC4wMHwyODMuNDZ8MC4wMHwxNDEuNzM='>
+    <rect x='0.00' y='0.00' width='283.46' height='141.73' />
+  </clipPath>
+</defs>
+<g clip-path='url(#cpMC4wMHwyODMuNDZ8MC4wMHwxNDEuNzM=)'>
+<rect x='40.00' y='30.00' width='120.00' height='80.00' style='fill: #DDDDDD; stroke: #000000;' />
+<text x='40.00' y='24.00' style='font-size: 11.00px; font-family: sans-serif;'>Panel A</text>
+</g>
+</g>
+<g transform='translate(0,141.73)'>
+<defs>
+  <clipPath id='cpMC4wMHwyODMuNDZ8MC4wMHwxNDEuNzM='>
+    <rect x='0.00' y='0.00' width='283.46' height='141.73' />
+  </clipPath>
+</defs>
+<g clip-path='url(#cpMC4wMHwyODMuNDZ8MC4wMHwxNDEuNzM=)'>
+<rect x='40.00' y='30.00' width='200.00' height='80.00' style='fill: #BBBBBB; stroke: #000000;' />
+<text x='40.00' y='24.00' style='font-size: 11.00px; font-family: sans-serif;'>Panel B</text>
+</g>
+</g>
+</svg>

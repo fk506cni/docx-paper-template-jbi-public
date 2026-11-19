@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- data/dummy/bhi/figs/fig-apparatus.svg — BHI 骨格ダミーの図 1 (TJD の外観と各部名称)。
+     内容は明らかなフィクション (TJD/THS のパロディ。
+     物語の出典は https://github.com/fk506cni/jami-pandoc-public の src/paper.md)。
+
+     【物理単位で書く】CLAUDE.md「原稿執筆の規約」が「300dpi 要求の誌に出す図は物理単位で
+     幅を書くのが安全」と勧めているので、写して使う動作例もそれに従う。
+     公称サイズ 160x50mm は BHI の本文幅 (A4 210mm - 左右 25.4mm = 159.2mm) より 0.8mm 広い。
+     ただし docx 上では 159.10mm に置かれる (ビルド時の pandoc が本文幅 159.2mm を
+     少し切り捨てて上限にするため。実測 5 727 700 EMU)。同じ画素数を狭い幅に置くので実効解像度は
+     上がる側で、無害である。300dpi 換算の画素数は 1890 px で、誌が本文幅で組む限り
+     解像度は足りる。
+     viewBox 480x150 (= 3.2:1) と 160:50 (= 3.2:1) は一致するので縦横比の歪みは出ない。
+     px 単位の換算経路は data/dummy/regression/ の fig-scale-px.svg が受け持つ。 -->
+<svg xmlns="http://www.w3.org/2000/svg" width="160mm" height="50mm" viewBox="0 0 480 150" font-family="Arial, sans-serif">
+  <rect x="0.5" y="0.5" width="479" height="149" fill="#ffffff" stroke="#cccccc"/>
+
+  <!-- subject -->
+  <rect x="12" y="52" width="76" height="44" rx="4" fill="#e8f0fe" stroke="#2E74B5"/>
+  <text x="50" y="70" font-size="11" text-anchor="middle" fill="#1a1a1a">subject</text>
+  <text x="50" y="84" font-size="11" text-anchor="middle" fill="#1a1a1a">(one author)</text>
+
+  <line x1="88" y1="74" x2="126" y2="74" stroke="#444444" stroke-width="1.5"/>
+  <polygon points="130,74 122,70 122,78" fill="#444444"/>
+
+  <!-- apparatus body -->
+  <rect x="130" y="30" width="196" height="90" rx="6" fill="#fef7e0" stroke="#b58a2e"/>
+  <text x="228" y="24" font-size="10" text-anchor="middle" fill="#666666">extremely heavy, many sharp corners</text>
+  <text x="228" y="50" font-size="12" text-anchor="middle" fill="#1a1a1a">apparatus body</text>
+
+  <!-- labelled parts inside the body -->
+  <rect x="142" y="60" width="84" height="24" rx="3" fill="#ffffff" stroke="#b58a2e"/>
+  <text x="184" y="76" font-size="10" text-anchor="middle" fill="#1a1a1a">low-hum emitter</text>
+  <rect x="234" y="60" width="80" height="24" rx="3" fill="#ffffff" stroke="#b58a2e"/>
+  <text x="274" y="76" font-size="10" text-anchor="middle" fill="#1a1a1a">sweat collector</text>
+  <rect x="142" y="90" width="172" height="22" rx="3" fill="#ffffff" stroke="#b58a2e"/>
+  <text x="228" y="105" font-size="10" text-anchor="middle" fill="#1a1a1a">exasperation microphone (supervisor side)</text>
+
+  <line x1="326" y1="74" x2="360" y2="74" stroke="#444444" stroke-width="1.5"/>
+  <polygon points="364,74 356,70 356,78" fill="#444444"/>
+
+  <!-- readout -->
+  <rect x="364" y="52" width="104" height="44" rx="4" fill="#e6f4ea" stroke="#137333"/>
+  <text x="416" y="70" font-size="11" text-anchor="middle" fill="#1a1a1a">tremendous output</text>
+  <text x="416" y="86" font-size="13" text-anchor="middle" fill="#137333">2.6 tsu</text>
+
+  <text x="240" y="138" font-size="10" text-anchor="middle" fill="#666666">20 trials across three interaction conditions</text>
+</svg>

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- data/dummy/regression/figs/fig-scale-mm.svg — 300dpi 換算のフィクスチャ (物理単位を持つ SVG)。
+     width/height が mm なので 60mm x 30mm = 2.362 x 1.181 in。300dpi では 709 x 355 px になる
+     (rsvg-convert の -d/-p だけでも正しく効く経路。回帰確認用)。 -->
+<svg xmlns="http://www.w3.org/2000/svg" width="60mm" height="30mm" viewBox="0 0 600 300"
+     font-family="Arial, sans-serif">
+  <rect x="1" y="1" width="598" height="298" fill="#ffffff" stroke="#cccccc" stroke-width="2"/>
+  <rect x="40" y="90" width="200" height="120" rx="8" fill="#e8f0fe" stroke="#2E74B5" stroke-width="3"/>
+  <text x="140" y="160" font-size="34" text-anchor="middle" fill="#1f3864">60 mm</text>
+  <path d="M 260 150 L 350 150" stroke="#2E74B5" stroke-width="4" fill="none"/>
+  <path d="M 350 150 l -14 -8 v 16 z" fill="#2E74B5"/>
+  <rect x="360" y="90" width="200" height="120" rx="8" fill="#fdf0e8" stroke="#B55E2E" stroke-width="3"/>
+  <text x="460" y="160" font-size="34" text-anchor="middle" fill="#7f3f1f">30 mm</text>
+</svg>
