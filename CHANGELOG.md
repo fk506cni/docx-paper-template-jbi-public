@@ -3,6 +3,26 @@
 All notable changes to this project are recorded in this file.
 Versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.1.1 — fixes
+
+### Fixed
+
+- **PowerPoint figures (`figures.pptx.inline_css`)**: opacity is no longer folded into `fill-opacity`
+  for shapes with a `filter`, for elements reused through `<use>`, `<pattern>` or `<feImage>`, or for
+  content inside `<defs>` / `<symbol>`; an `rgba()` / `hsl()` colour that cannot be written as a single
+  value in such places stops the conversion. CSS variables are taken only from rules that match the
+  root element; a definition under `#<root id> :root` (as Mermaid writes it) counts as undefined, and a
+  presentation attribute that uses `var()` stops the conversion.
+- **Figure provenance**: the record of the figure preprocessing also covers Mermaid PDFs and carries
+  a format version, so a build made with an earlier version must be rebuilt before a final package or
+  `--skip-figures`. A PDF in a subfolder of `figs/mermaid/` counts as a manuscript input. `build.sh`
+  checks the figure provenance again before writing its record, and `diff.sh` stops if the manuscript
+  changes while the diff is made.
+- **Supplementary files**: unreadable folders or files, and links to a folder that contains
+  `supplementary/` (such as the input root), stop packaging with a message.
+- **Messages**: `build.sh` reports a Docker start-up failure separately from inputs that the container
+  cannot see, and `SUBMISSION.md` lists every cause when figure numbers and figure files do not match.
+
 ## 0.1.0 — first public release
 
 ### Added

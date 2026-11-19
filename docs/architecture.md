@@ -323,10 +323,13 @@ docker compose -f docker/docker-compose.yml run --rm -u "$(id -u):$(id -g)" pand
 - `figures.pptx.inline_css: true` のときは、埋め込む SVG の CSS を各要素の `style` へ書き出して `<style>` を外す
   (`main/00_setup/lib/svg_safe.py`)。SVG の CSS を適用しない描画系 (例: Aspose.Slides) は塗りの指定の無い図形を既定の黒で塗るため
   (R の svglite の図では、中身の上に描くパネルの枠がパネルを隠す)。CSS の詳細度・記述順・`!important` に従って書き出す。
-  扱うのは svglite・Mermaid の経路・matplotlib が書く CSS (子の結合子 `>`・属性の各種の一致・ルートで定義した CSS の変数を含む) で、
-  それ以外の形は止める (Mermaid では、文字を HTML で出す journey 図が止まる。止まったら、その図だけ案 A にするか `--format png`)。
+  扱うのは svglite・Mermaid の経路・matplotlib が書く CSS (子の結合子 `>`・属性の各種の一致・ルートで定義した CSS の変数を含む。
+  Mermaid が書く `#my-svg :root` での定義はどの要素にも効かないので、定義の無い変数として扱う) で、それ以外の形 (ルートに当たらない規則での
+  変数の定義・表示属性の `var()` など) と、1 つの値に書き換えられない `rgba()` / `hsl()` (`<use>` などで再利用される要素が自身に不透明度を
+  持たないときなど) は止める (Mermaid では、文字を HTML で出す journey 図が止まる。止まったら、その図だけ案 A にするか `--format png`)。
   あわせて、幅か高さの無い `<rect>` を取り除き、`rgba()` / `hsl()` と `grey` 系の色名を 16 進の色 (と不透明度) に、奇数個の値の
-  `stroke-dasharray` を偶数個に、合計 0 の `stroke-dasharray` を `none` に直し、線の無い図形の `opacity` を `fill-opacity` に掛け合わせ、
+  `stroke-dasharray` を偶数個に、合計 0 の `stroke-dasharray` を `none` に直し、線の無い図形の `opacity` を `fill-opacity` に掛け合わせ
+  (`filter` を持つ図形と、`<use>` などから参照される要素・`<defs>` / `<symbol>` の中の要素は除く)、
   要素の `style` に残った `!important` を外す (どれも CSS を読む描画系では同じ見た目)。書き換えの前後を Chromium で描くと画素が一致する
   (確かめた範囲と例外は `docs/journal-bhi.md` の `inline_css` の節)。`text_to_path` と併用すると、`figure-plan` が書き出した
   `data/step05_package/<図>.safe.svg` を輪郭化する (先に輪郭化すると、Inkscape が CSS を残すので文字の描かれ方が崩れる)。
@@ -412,20 +415,26 @@ Markdown の層で原稿を読み、上限と執筆の検査を掛ける。結�
   `build.sh` もコンテナの中でそれを呼ぶ (サブコマンド `inputs-sha256`)。シンボリックリンクはリンクの先の中身を数えるが、数えるのは
   コンテナから見えるリンク (リポジトリの中を指す相対リンク) だけで、絶対パスのリンクやリポジトリの外を指すリンクの先は数えない
   (build もそのファイルを読めない)。`figs/` の中のディレクトリのリンクは、照合ではたどるが図の前処理はたどらないので、図はそこに置かない。
-  `figs/` のハッシュは、同じ名前の `.mmd` がある `figs/mermaid/` の `.svg` / `.pdf` (生成物の残り) と `*.svg.png` だけを除く
-  (`.mmd` の無い `figs/mermaid/` の PDF は図として変換されるので数える)。`build.sh` は入力のハッシュを build の前と後で取り、違えば
-  (build の最中に原稿や図が変わった) 記録を書かずに止まる。
+  `figs/` のハッシュは、`figs/mermaid/` 直下の `.svg` / `.pdf` のうち同じ名前の `.mmd` が直下にあるもの (生成物の残り) と `*.svg.png`
+  だけを除く (図の前処理が描くのは `figs/mermaid/` 直下の `.mmd` だけなので、`.mmd` の無い PDF と、下位のフォルダにある PDF は図として
+  変換され、数える)。`build.sh` は入力のハッシュを build の前と後で取り、違えば (build の最中に原稿や図が変わった) 記録を書かずに止まる。
+  build の最後には図の前処理の記録とも照合し、docx に埋め込んだ図が記録と食い違えば (止めた build のコンテナが記録の後に図を書いた
+  場合など) 記録を書かずに止まる。`diff.sh` も差分の前と後で原稿の SHA-256 を取り、違えば差分の記録を書かずに止まる。
   最終モードの提出物の図は図の前処理の結果 (`data/step01_figures/`) から作るので、その出所も照合する: `figures.sh` が前処理の前と最後に
-  入力ルートと `figs/` の SHA-256 (`_inputs_sha256()` を `figs/` に絞ったもの) を取り、違わなければ、作った図の各ファイル (PDF を除く) の
-  SHA-256 とあわせて `data/step01_figures/.figures.source` に書く (サブコマンド `figures-source hash` / `write`)。最終モードの package
-  (figure-plan と組み立ての前) が照合して、食い違えば・記録が無ければ・作った図が記録の後に変わっていれば止める (止めた build のコンテナが
-  後から図を書いた場合を含む)。図の前処理の結果が見つからない図があっても止める (飛ばすと図の欠けた提出物が終了コード 0 でできるため)。
+  入力ルートと `figs/` の SHA-256 (`_inputs_sha256()` を `figs/` に絞ったもの) を取り、違わなければ、作った図の各ファイルの SHA-256 と
+  あわせて `data/step01_figures/.figures.source` に書く (サブコマンド `figures-source hash` / `write`)。作った図の PDF のうち記録するのは
+  `figs/mermaid/` 直下の `.mmd` から作った Mermaid の PDF だけで (pdf 形式の提出物はこれをそのまま使う)、package が svg-conversion で
+  作り直す PDF は除く。最終モードの package (figure-plan と組み立ての前) が照合して、食い違えば・記録が無ければ・記録の形 (`format` の行)
+  が違えば・作った図が記録の後に変わっていれば止める (止めた build のコンテナが後から図を書いた場合を含む)。図の前処理の結果が
+  見つからない図があっても止める (飛ばすと図の欠けた提出物が終了コード 0 でできるため)。
   `--skip-figures` の build / diff も `figures-source check` で照合して止める。
   原稿が必ず使う 5 つの入力が、絶対パスのリンク・行き先の無いリンク・物理的にリポジトリの外にあるパス (途中のディレクトリのリンクや
   `..` を含めて `cd -P` で判定する) なら、`build.sh` が止まる (文献の無い docx が黙ってできないように)。あわせて、ホストで見える入力が
   コンテナからも見えるかを確かめて、見えなければ止まる (サブコマンド `inputs-visible`。途中にリポジトリの中を指す絶対パスのリンクを
-  挟む形や、絶対パスの入力ルート)。`supplementary/` がディレクトリとして読めないとき、その中のリンクの先が読めないときは `package.py` が
-  止まる (補足資料が黙って抜けないように。中のディレクトリのリンクもたどる)。
+  挟む形や、絶対パスの入力ルート)。Docker 自体が動かない (コンテナを起動できない) ときは、入力のせいにせずに別の文面で止まる。
+  `supplementary/` がディレクトリとして読めないとき、その中のリンクの先が読めないとき、読めない (アクセス権の無い) ディレクトリや
+  ファイルがあるときは `package.py` が止まる (補足資料が黙って抜けないように。中のディレクトリのリンクもたどる)。`supplementary/` を
+  中に含むディレクトリ (入力ルートなど) を指すリンクも止める (原稿などの入力が補足資料として公開されないように)。
   `build.sh` / `diff.sh` / `package.sh` は同じ作業ツリーでの同時実行を止める (`scripts/lib/build-lock.sh`。3 つとも
   `data/step02_build/.build.lock` を排他で取る。`flock` が無い環境では警告だけ)。
   それでも記録と `main.docx` が別の build のものになったときは、`main.docx` の SHA-256 の照合で止まる。

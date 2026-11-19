@@ -59,8 +59,7 @@ text_styles:                  # ★ 省略可。無い誌は pandoc 既定の級
                               #   指定に頼らずに全体をそろえる
 
 # --- 記事種別 ("Manuscript Types" 節の 8 種別) ---
-# 語数上限から除外されるのは 表・図 / 文献 / 図キャプション (規定本文) + 抄録 / Abbreviations
-# (抄録と Abbreviations を除き Declarations を数えるのは本テンプレートの扱い。docs/journal-bhi.md §1)。
+# 語数上限から除外されるのは 表・図 / 文献 / 図キャプション (規定本文)。抄録 / Abbreviations も除き Declarations を数えるのは本テンプレートの扱い (docs/journal-bhi.md §1)
 # sections は一次資料 "Main Text" 欄の転記 (参照用。節順の検査には使わない)
 #   ※ 逐語転記ではなく要約である。review / perspective / tutorial の "Body" は
 #     原文 "Body texts (flexible structure appropriate to the contents)"、letter の "Body" は

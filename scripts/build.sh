@@ -139,11 +139,24 @@ host_seen=()
 for f in main.md ref.bib cover-letter.md revise-report.md figs; do
     [ -e "$INPUT_ROOT/$f" ] && host_seen+=("$f")
 done
-if ! unseen="$(docker compose -f "$COMPOSE_FILE" run --rm -T -u "$(id -u):$(id -g)" pandoc \
+# 見えない入力は package.py が「inputs-visible: 名前 …」の行で知らせる。その行が無い失敗は Docker 自体の失敗なので、
+# 入力のせいにせずに別の文面で止める
+if ! vis_out="$(docker compose -f "$COMPOSE_FILE" run --rm -T -u "$(id -u):$(id -g)" pandoc \
         python3 main/step05_package/package.py inputs-visible --input-root "$INPUT_ROOT" "${host_seen[@]}" 2>&1)"; then
-    echo "エラー: $INPUT_ROOT の次の入力は、ホストからは見えますが変換を行うコンテナからは見えません: $(printf '%s\n' "$unseen" | tail -n 1 | sed 's/^inputs-visible: //')" >&2
+    unseen="$(printf '%s\n' "$vis_out" | tr -d '\r' | sed -n 's/^inputs-visible: //p' | tail -n 1)"
+    if [ -z "$unseen" ]; then
+        echo "エラー: 変換を行うコンテナ (pandoc) を起動できませんでした: $(printf '%s\n' "$vis_out" | tr -d '\r' | tail -n 1)" >&2
+        echo "  Docker (Docker Desktop) が動いているか、イメージを作ったか ('docker compose -f docker/docker-compose.yml build') を確かめてください。" >&2
+        exit 1
+    fi
+    echo "エラー: $INPUT_ROOT の次の入力は、ホストからは見えますが変換を行うコンテナからは見えません: $unseen" >&2
     echo "  コンテナからはリポジトリの中しか見えません。絶対パスの入力ルートや、途中に絶対パスのリンクを挟むパスは使えません。" >&2
     echo "  実体をリポジトリの中に置くか、リポジトリの中を指す相対リンクにしてください。" >&2
+    case " $unseen " in
+        *" main.md "*)
+            echo "  main.md も見えないときは、入力ルートが ../ でリポジトリの外を経由していないか、Docker Desktop のファイル共有で" >&2
+            echo "  このリポジトリの場所がコンテナに共有されているかも確かめてください。" >&2 ;;
+    esac
     exit 1
 fi
 
@@ -156,8 +169,8 @@ take_build_lock build.sh
 
 # 原稿のほかの入力 (ref.bib / cover-letter.md / revise-report.md / figs/) の中身のハッシュ (main.md だけを見ると、
 # 文献やカバーレターや図を直して build し直さないパッケージが照合を通ってしまうため)。
-# 「相対パス<TAB>SHA-256」の行を C ロケールの順に並べた全体の SHA-256。生成物の残り (同じ名前の .mmd がある
-# figs/mermaid/ の .svg / .pdf) と、*.svg.png (PNG フォールバック) は除く。
+# 「相対パス<TAB>SHA-256」の行を C ロケールの順に並べた全体の SHA-256。生成物の残り (figs/mermaid/ 直下の .svg / .pdf の
+# うち、同じ名前の .mmd が直下にあるもの) と、*.svg.png (PNG フォールバック) は除く。
 # シンボリックリンクはリンクの先の中身を数え、figs の中のディレクトリのリンクもたどる。
 # 計算は package.py の _inputs_sha256() だけが持ち、ここはコンテナの中でそれを呼ぶ。ホストで別に計算すると、
 # コンテナから見えないリンクの先で package.py と値が食い違い、final が必ず止まるため。
@@ -260,6 +273,14 @@ MAIN_SHA="$(sha256sum < "$INPUT_ROOT/main.md" | cut -d' ' -f1)"
 if [ "$MAIN_SHA" != "$MAIN_SHA_BEFORE" ] || [ "$INPUTS_SHA" != "$INPUTS_SHA_BEFORE" ]; then
     echo "エラー: build の最中に $INPUT_ROOT の原稿か図・文献などの入力が変わりました。もう一度 build してください" >&2
     echo "  (今の docx は変わる前の原稿から作った可能性があるので、出所の記録を書きません)。" >&2
+    exit 1
+fi
+# docx に埋め込んだ図 (data/step01_figures/) も、build の最後に図の前処理の記録と照合する。止めた build のコンテナが
+# 記録の後に図を書くと、別の原稿の図が main.docx に入りうるため
+if ! fig_problem="$(docker compose -f "$COMPOSE_FILE" run --rm -T -u "$(id -u):$(id -g)" pandoc \
+        python3 main/step05_package/package.py figures-source check --input-root "$INPUT_ROOT" 2>&1)"; then
+    echo "エラー: build に使った図が、図の前処理の記録と食い違います: $(printf '%s\n' "$fig_problem" | tr -d '\r' | tail -n 1)。" >&2
+    echo "  今の docx には別の原稿の図が入った可能性があるので、出所の記録を書きません。--skip-figures を付けずにもう一度 build してください。" >&2
     exit 1
 fi
 printf 'input_root\t%s\nmain_sha256\t%s\njournal\t%s\narticle_type\t%s\ninputs_sha256\t%s\nmain_docx_sha256\t%s\n' \

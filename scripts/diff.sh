@@ -173,6 +173,12 @@ RUN="docker compose -f $COMPOSE_FILE run --rm -u $(id -u):$(id -g) pandoc"
 # package が直前の原稿の差分として扱う (記録が無ければ package は SUBMISSION.md に注意を出す)
 rm -f "$OUT_DIR/.main_diff.source"
 
+# 差分の前に原稿の SHA-256 を取る。差分の後に取り直して違えば (差分の最中に原稿が変わった) 記録を書かずに止める。
+# 差分は変わる前の原稿から作られているので、変わった後の原稿の SHA-256 を記録すると、古い差分が今の原稿のものとして
+# 提出物に入る。旧版がファイルのとき (old.md new.md の形) は旧版も同じく見る
+NEW_SHA_BEFORE=$(sha256sum "$NEW_MD" | cut -d' ' -f1)
+OLD_SHA_BEFORE=$(sha256sum "$OLD_MD" | cut -d' ' -f1)
+
 echo ""
 $RUN python3 main/step03_diff/diff_docx.py \
     --input-root "$INPUT_ROOT" --journal "$JOURNAL" \
@@ -184,6 +190,17 @@ $RUN python3 main/step03_diff/diff_docx.py \
 # 書式: 1 行目 = 誌 / 2 行目 = 新版の原稿のパス / 3 行目 = 新版の原稿の SHA-256 / 4 行目 = 記事種別 (無ければ空)。
 # 中身のハッシュで比べるので、package.sh --build が main.docx を作り直しても「古い」とは判定しない
 NEW_SHA=$(sha256sum "$NEW_MD" | cut -d' ' -f1)
+changed_md=""
+if [ "$NEW_SHA" != "$NEW_SHA_BEFORE" ]; then
+    changed_md="$NEW_MD"
+elif [ "$(sha256sum "$OLD_MD" | cut -d' ' -f1)" != "$OLD_SHA_BEFORE" ]; then
+    changed_md="$OLD_MD"
+fi
+if [ -n "$changed_md" ]; then
+    echo "エラー: 差分の最中に $changed_md が変わりました。もう一度 diff を回してください" >&2
+    echo "  (今の差分 docx は変わる前の原稿から作った可能性があるので、記録を書きません)。" >&2
+    exit 1
+fi
 printf '%s\n%s\n%s\n%s\n' "$JOURNAL" "$NEW_MD" "$NEW_SHA" "$ARTICLE_TYPE" > "$OUT_DIR/.main_diff.source"
 
 echo ""

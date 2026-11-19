@@ -1243,14 +1243,30 @@ def copy_supplementary(input_root, profile, out_dir, warnings, flags=None):
 
     # 中のディレクトリのリンクもたどって数える (rglob はたどらない)。リンクなのに中身が見えないもの (コンテナから見えない
     # 場所を指すリンク・行き先の無いリンク) があれば止める (補足資料が黙って提出物から抜けないように)。
-    # 自分の祖先と同じ実体のディレクトリ (ループ) には入らない (_inputs_sha256 と同じ扱い)
-    files, unseen, chain = [], [], {}
-    for dirpath, dirs, names in os.walk(src_root, followlinks=True):
+    # 自分の祖先と同じ実体のディレクトリ (ループ) には入らない (_inputs_sha256 と同じ扱い)。
+    # 読めないディレクトリ・ファイルがあれば止める (アクセス権の無いものが黙って提出物から抜けないように)。
+    # supplementary/ を中に含むディレクトリ (入力ルートなど) を指すリンクもたどらずに止める (原稿やカバーレターが無変換で
+    # 公開される補足資料に入らないように)
+    files, unseen, unreadable, outer, chain = [], [], [], [], {}
+    real_root = os.path.realpath(src_root)
+
+    def _rel(path):
+        r = os.path.relpath(path, src_root)
+        return "(supplementary/ そのもの)" if r == "." else Path(r).as_posix()
+
+    def _walk_error(err):
+        unreadable.append(_rel(err.filename) if err.filename else "(supplementary/ そのもの)")
+
+    for dirpath, dirs, names in os.walk(src_root, followlinks=True, onerror=_walk_error):
         ancestors = chain.get(dirpath, frozenset()) | {os.path.realpath(dirpath)}
         keep = []
         for d in dirs:
             sub = os.path.join(dirpath, d)
-            if os.path.realpath(sub) in ancestors:
+            real_sub = os.path.realpath(sub)
+            if real_sub in ancestors:
+                continue
+            if Path(real_root).is_relative_to(real_sub):
+                outer.append(_rel(sub))
                 continue
             chain[sub] = ancestors
             keep.append(d)
@@ -1258,6 +1274,12 @@ def copy_supplementary(input_root, profile, out_dir, warnings, flags=None):
         for n in names:
             p = Path(dirpath) / n
             if p.is_file():
+                try:
+                    with open(p, "rb"):
+                        pass
+                except OSError:
+                    unreadable.append(_rel(p))
+                    continue
                 files.append(p)
             elif p.is_symlink() and not p.exists():
                 unseen.append(p.relative_to(src_root).as_posix())
@@ -1265,6 +1287,13 @@ def copy_supplementary(input_root, profile, out_dir, warnings, flags=None):
         sys.exit(f"エラー: {src_root} の中の次のリンクの先が読めません (コンテナから見えない場所を指すリンクか、"
                  f"行き先の無いリンク): {', '.join(sorted(unseen))}。補足資料を提出物に入れられないので止めます。"
                  "実体をリポジトリの中に置くか、リポジトリの中を指す相対リンクにしてください。")
+    if outer:
+        sys.exit(f"エラー: {src_root} の中の次のリンクは、{SUPP_DIRNAME}/ を中に含むディレクトリ (入力ルートなど) を指しています: "
+                 f"{', '.join(sorted(outer))}。原稿などの入力が補足資料として公開されないよう止めます。"
+                 "補足資料に入れるものだけを指すリンクにしてください。")
+    if unreadable:
+        sys.exit(f"エラー: {src_root} の中の次のディレクトリ・ファイルを読めません (アクセス権を確かめてください): "
+                 f"{', '.join(sorted(unreadable))}。補足資料が欠けた提出物にならないよう止めます。")
     supp, video, skipped = [], [], []
     for src in sorted(files):
         rel = src.relative_to(src_root)
@@ -1961,8 +1990,9 @@ def cmd_inputs_visible(args):
 def _inputs_sha256(root, names=("ref.bib", "cover-letter.md", "revise-report.md")):
     """原稿のほかの入力 (ref.bib / cover-letter.md / revise-report.md / figs/) の中身のハッシュ。
 
-    「相対パス<TAB>SHA-256」の行を C ロケールの順に並べた全体の SHA-256。figs/mermaid/ 直下の .svg / .pdf と
-    *.svg.png は除く。scripts/build.sh も出所の記録に書くときに、この関数をコンテナの中で呼ぶ (サブコマンド
+    「相対パス<TAB>SHA-256」の行を C ロケールの順に並べた全体の SHA-256。figs/mermaid/ 直下の .svg / .pdf のうち
+    同じ名前の .mmd が figs/mermaid/ 直下にあるもの (図の前処理が読み飛ばす生成物の残り) と *.svg.png は除く。
+    scripts/build.sh も出所の記録に書くときに、この関数をコンテナの中で呼ぶ (サブコマンド
     inputs-sha256)。計算を 1 か所にするのは、ホストとコンテナで別々に計算すると、コンテナから見えない
     リンクの先 (絶対パスのリンク・リポジトリの外を指すリンク) で値が食い違い、final が必ず止まるため。
     シンボリックリンクはリンクの先の中身を数え、figs の中のディレクトリのリンクもたどる。自分の祖先と同じ実体を
@@ -2001,11 +2031,13 @@ def _inputs_sha256(root, names=("ref.bib", "cover-letter.md", "revise-report.md"
                 if not f.is_file():
                     continue
                 rel = f.relative_to(root).as_posix()
-                # 除くのは生成物の残り: *.svg.png と、同じ名前の .mmd がある figs/mermaid/ の .svg / .pdf
-                # (process_figures.py の _mermaid_leftover と同じ条件。.mmd の無い PDF は図として変換されるので数える)
+                # 除くのは生成物の残り: *.svg.png と、figs/mermaid/ 直下の .svg / .pdf のうち同じ名前の .mmd が直下にあるもの
+                # (process_figures.py の _mermaid_leftover と同じ条件)。図の前処理が描くのは figs/mermaid/ 直下の .mmd だけなので、
+                # 下位のフォルダの .mmd の隣の PDF と .mmd の無い PDF は図として変換され、数える
+                parts = rel.split("/")
                 if rel.endswith(".svg.png") or (
-                        rel.startswith("figs/mermaid/") and f.suffix in (".svg", ".pdf")
-                        and (Path(dirpath) / (f.stem + ".mmd")).is_file()):
+                        len(parts) == 3 and parts[1] == "mermaid" and f.suffix in (".svg", ".pdf")
+                        and (root / "figs" / "mermaid" / (f.stem + ".mmd")).is_file()):
                     continue
                 rels.append(rel)
         for rel in sorted(rels, key=lambda r: r.encode("utf-8")):
@@ -2027,14 +2059,32 @@ def _figs_sha256(root):
     return _inputs_sha256(root, names=())
 
 
-def _figure_outputs():
-    """図の前処理が作った図 (data/step01_figures/figs/ の中。PDF は package.sh が後から書き足すので除く) の
-    [(相対パス, SHA-256)]。"""
+#: 図の前処理の出所の記録の形。この値の format 行が無い記録は、作った図の一覧の数え方が違うので照合に使わない
+FIGURES_SOURCE_FORMAT = "2"
+
+
+def _figure_outputs(input_root):
+    """図の前処理が作った図 (data/step01_figures/figs/ の中) の [(相対パス, SHA-256)]。
+
+    PDF のうち含めるのは、figs/mermaid/ 直下の .mmd から作った Mermaid の PDF だけ。pdf 形式の提出物はこの PDF を
+    そのまま使い、package.sh は作り直さない。ほかの PDF (package.sh が svg-conversion で作り直す図・figures.sh --final-pdf の
+    確認用の図) は記録の後に書き換わるので除く。
+    """
     figs = FIG_ROOT / "figs"
     if not figs.is_dir():
         return []
-    rels = sorted((p.relative_to(FIG_ROOT).as_posix() for p in figs.rglob("*")
-                   if p.is_file() and p.suffix.lower() != ".pdf"), key=lambda r: r.encode("utf-8"))
+    mmd_dir = Path(input_root) / "figs" / "mermaid"
+
+    def recorded(p):
+        if not p.is_file():
+            return False
+        if p.suffix.lower() != ".pdf":
+            return True
+        rel = p.relative_to(figs)
+        return len(rel.parts) == 2 and rel.parts[0] == "mermaid" and (mmd_dir / (p.stem + ".mmd")).is_file()
+
+    rels = sorted((p.relative_to(FIG_ROOT).as_posix() for p in figs.rglob("*") if recorded(p)),
+                  key=lambda r: r.encode("utf-8"))
     return [(rel, _file_sha256(FIG_ROOT / rel)) for rel in rels]
 
 
@@ -2048,11 +2098,12 @@ def write_figures_source(input_root, expect=None):
     now = _figs_sha256(input_root)
     if expect is not None and expect != now:
         sys.exit(f"エラー: 図の前処理の最中に {input_root}/figs/ が変わりました。図の前処理からやり直してください。")
-    outputs = _figure_outputs()
+    outputs = _figure_outputs(input_root)
     FIGURES_SOURCE.parent.mkdir(parents=True, exist_ok=True)
     # 一時名に乱数を入れる (コンテナの中の PID は毎回同じになるため)
     tmp = FIGURES_SOURCE.with_name(f"{FIGURES_SOURCE.name}.{os.getpid()}.{os.urandom(4).hex()}")
-    tmp.write_text(f"input_root\t{input_root}\nfigs_sha256\t{now}\noutputs\t{len(outputs)}\n"
+    tmp.write_text(f"format\t{FIGURES_SOURCE_FORMAT}\ninput_root\t{input_root}\nfigs_sha256\t{now}\n"
+                   f"outputs\t{len(outputs)}\n"
                    + "".join(f"output\t{sha}\t{rel}\n" for rel, sha in outputs), encoding="utf-8")
     os.replace(tmp, FIGURES_SOURCE)
 
@@ -2070,10 +2121,13 @@ def figures_source_problem(input_root):
                 f"(今回の入力ルートは {input_root})")
     if rec.get("figs_sha256", "").strip() != _figs_sha256(input_root):
         return f"data/step01_figures/ の図を作った後に {input_root}/figs/ が変わっています"
-    # 作った図が記録の後に変わっていないか
+    # 作った図が記録の後に変わっていないか。形の違う記録は、作った図の一覧が足りないことがあるので
+    # 照合に使わない
     outs = [ln.split("\t", 2) for ln in lines if ln.startswith("output\t")]
-    if "outputs" not in rec or str(len(outs)) != rec["outputs"].strip():
-        return "図の前処理の出所の記録が古い形か壊れています (作った図の一覧がありません)"
+    if (rec.get("format", "").strip() != FIGURES_SOURCE_FORMAT
+            or "outputs" not in rec or str(len(outs)) != rec["outputs"].strip()):
+        return ("図の前処理の出所の記録 (data/step01_figures/.figures.source) が古い形か壊れています "
+                "(このテンプレートの版の形ではないか、作った図の一覧が欠けています)")
     for _tag, sha, rel in outs:
         f = FIG_ROOT / rel
         if not f.is_file() or _file_sha256(f) != sha:
@@ -2443,25 +2497,51 @@ def cmd_assemble(args):
         n_skipped = len(manuscript_figures(args.input_root, body_only=True)) - len(fig_written)
         # 題の無い図は CAPTIONS の項目にならない (本文では番号が振られないが、図ファイルにはなる)。番号つきの図の番号が
         # 1 から順に並ばないときだけ、番号を取っているのに図ファイルにならない図 (テキストボックスの中の図) を理由にする
-        # (番号を取らないテキストボックスの図まで理由にしていた)
+        # 番号を取らないテキストボックスの図は理由にしない
         n_untitled = len(fig_written) - len(fig_numbers)
         numbered = [n for n in fig_numbers if n is not None]
+        # 原因はすべて集める。原因が 1 つだけのときに限り、その直し方で「一致する」と案内する。2 つ以上なら原因を
+        # すべて挙げ、すべてを直せば一致すると案内する (一部だけを直しても食い違いは残るため)。
+        # 各組は (原因の文, 原因が 1 つだけのときの文と案内, 2 つ以上のときの直し方)。直し方の無い組は対応が取れないとき
+        causes = []
+        if any(n is None for n in fig_numbers):
+            causes.append(("番号の無い図 (相互参照のラベル {#fig:x} の無い図) がある",
+                           ("番号の無い図 (相互参照のラベル {#fig:x} の無い図) があるため", "ラベルを付ければ一致する"),
+                           "番号の無い図にラベルを付ける"))
+        if n_untitled > 0:
+            causes.append((f"題 (キャプション) の無い図 {n_untitled} 枚も図ファイルとして書き出され、本文では番号が振られない",
+                           (f"題 (キャプション) の無い図 {n_untitled} 枚も図ファイルとして書き出され、"
+                            "本文では番号が振られないため",
+                            "題の無い図が本文の末尾にまとまっていれば、それより前の図ファイルの番号は一致する。"
+                            "図なら題と {#fig:x} を付け、飾りの画像なら本文から外す"),
+                           "題の無い図に題と {#fig:x} を付けるか本文から外す"))
+        if numbered != list(range(1, len(numbered) + 1)):
+            if n_textbox > 0:
+                causes.append(("図ファイルにならない図 (テキストボックスの中の図) が本文の図番号を取っている",
+                               ("図ファイルにならない図 (テキストボックスの中の図) が本文の図番号を取っているため",
+                                "図をテキストボックスの外に出せば一致する"),
+                               "テキストボックスの中の図を外に出す"))
+            else:
+                causes.append(("図ファイルと本文の図番号の対応が取れない",
+                               ("図ファイルと本文の図番号の対応が取れないため",
+                                "CAPTIONS.md の図番号と図ファイルの対応を確かめる"),
+                               None))
         if figure_numbers_match:
             figure_numbers_reason = None
-        elif any(n is None for n in fig_numbers):
-            figure_numbers_reason = ("番号の無い図 (相互参照のラベル {#fig:x} の無い図) があるため",
-                                     "ラベルを付ければ一致する")
         elif n_skipped > 0:
             figure_numbers_reason = (f"本文の図のうち {n_skipped} 枚を図ファイルに書き出せなかったため (上の注意を見る)",
                                      "原稿と同じ入力ルートで build から回し直す")
-        elif n_untitled > 0 and numbered == list(range(1, len(numbered) + 1)):
-            figure_numbers_reason = (f"題 (キャプション) の無い図 {n_untitled} 枚も図ファイルとして書き出され、"
-                                     "本文では番号が振られないため",
-                                     "題の無い図が本文の末尾にまとまっていれば、それより前の図ファイルの番号は一致する。"
-                                     "図なら題と {#fig:x} を付け、飾りの画像なら本文から外す")
-        elif n_textbox > 0 and numbered != list(range(1, len(numbered) + 1)):
-            figure_numbers_reason = ("図ファイルにならない図 (テキストボックスの中の図) が本文の図番号を取っているため",
-                                     "図をテキストボックスの外に出せば一致する")
+        elif len(causes) == 1:
+            figure_numbers_reason = causes[0][1]
+        elif causes:
+            listed = " / ".join(f"({i}) {c[0]}" for i, c in enumerate(causes, start=1))
+            fixes = [c[2] for c in causes if c[2]]
+            fix_text = "、".join(f"({i}) {f}" for i, f in enumerate(fixes, start=1))
+            if all(c[2] for c in causes):
+                hint = f"{fix_text} のすべてを直せば一致する (一部だけを直しても食い違いは残る)"
+            else:
+                hint = f"{fix_text} を直したうえで、CAPTIONS.md の図番号と図ファイルの対応を確かめる"
+            figure_numbers_reason = (f"{len(causes)} つの原因 ({listed}) が重なっているため", hint)
         else:
             figure_numbers_reason = ("図ファイルと本文の図番号の対応が取れないため",
                                      "CAPTIONS.md の図番号と図ファイルの対応を確かめる")

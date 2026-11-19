@@ -592,10 +592,13 @@ PNG は `svg_raster.py` (§5.2) を通すので 300 dpi を保証する。ラス
 当てはまる各要素の `style` へ書き込み (要素自身の指定を優先し、CSS の詳細度と記述順に従う)、`white-space: pre` を `xml:space` に直し、
 文字に色を明示してから `<style>` を外す。扱う CSS は svglite・本テンプレートの Mermaid の経路・matplotlib が書く形 (要素名・`*`・クラス・ID・
 属性 (`=` `~=` `|=` `^=` `$=` `*=`、大小無視の `i`) のセレクタと子孫・子 (`>`) の結合子、`!important`、1 つの規則の中の代替の値 (記述の順に全部書く)。
-CSS の変数は、ルートに当たるセレクタ (`:root`・`svg`・ルートの ID と、Mermaid が書く `#my-svg :root`) の規則とルート要素の `style` の定義を集めて
-`var()` を値に置き換え (名前の大文字と小文字は区別する)、`@keyframes` は読み飛ばす) で、それ以外 (`+` `~` の結合子・擬似クラス・`@media`・
-一括指定の `font`・`media` 属性つきの `<style>`・定義の無い変数・ルート以外の規則や要素の `style` での変数の定義・
-`foreignObject` の中の HTML に当たる規則など) を見つけたら止まる (黙って一部だけ書き換えると、見た目が変わったことに気づけないため)。
+CSS の変数は、ルートに当たるセレクタ (`:root`・`svg:root`・`*:root`・小文字の `svg`・ルートの ID) の規則とルート要素の `style` の定義を集めて
+`var()` を値に置き換え (名前の大文字と小文字は区別する。Mermaid が書く `#my-svg :root` の規則は CSS の規則ではどの要素にも当たらないので、
+そこでだけ定義された変数は定義の無い変数として扱い、代わりの値があればそれを使う)、`@keyframes` は読み飛ばす) で、それ以外 (`+` `~` の結合子・
+擬似クラス・`@media`・一括指定の `font`・`media` 属性つきの `<style>`・定義の無い変数 (`#my-svg :root` でだけ定義され代わりの値の無い変数を、
+要素に当たる規則が使う形を含む)・ルートに当たらない規則 (大文字の `SVG`・`.a :root` など) や要素の `style` での変数の定義・
+表示属性 (`fill="var(…)"` など) の `var()`・`foreignObject` の中の HTML に当たる規則など) を見つけたら止まる
+(黙って一部だけ書き換えると、見た目が変わったことに気づけないため)。
 Mermaid の図は、mermaid-cli 11.4.2 で作った 16 種類 (フローチャートは既定・テーマ・dark・forest・`classDef` の 5 通り。ほかにシーケンス図・
 状態遷移図・クラス図・ER 図・ガント・円グラフ・gitGraph・mindmap・timeline・quadrant・xychart・requirement・block・sankey・journey) のうち、
 文字を HTML (`foreignObject`) で出す **journey 図だけが止まる** (C4・architecture・packet・kanban も止まらない)。
@@ -608,20 +611,26 @@ Aspose.Slides の評価版は表示域いっぱいの四角として描き、Mer
 また、次の値を描画系を選ばない形に書き換える (どれも CSS を読む描画系では同じ見た目):
 
 - 色の `rgba()` / `hsl()` を 16 進の色と不透明度 (`fill-opacity` など。自身か祖先に不透明度があれば掛け合わせる) に。
-  Aspose.Slides の評価版は `rgba()` / `hsl()` を黒で塗る (Mermaid の辺のラベルの背景・ガントの区画の帯に当たる)
+  Aspose.Slides の評価版は `rgba()` / `hsl()` を黒で塗る (Mermaid の辺のラベルの背景・ガントの区画の帯に当たる)。
+  1 つの値に書き換えられない形では止まる: 子 (子の `<use>` が参照する要素とその子孫を含む) が色と不透明度の片方だけを持つとき、
+  `<use>` などで再利用される要素 (自身か祖先の id が `<use>` から参照される) が `fill` / `stroke` の `rgba()` / `hsl()` を持ち、
+  自身に `fill-opacity` / `stroke-opacity` が無いとき (受け継ぐ不透明度が使われる場所ごとに違う。その要素に不透明度を書けば通る)
 - 色名の `grey` 系の綴り (`grey`・`lightgrey` など 7 つ) を 16 進に。評価版はこれらを黒で塗る (Mermaid のガントの完了済みのタスクと
-  dark のテーマに当たる。`gray` の綴りは正しく塗る)
+  dark のテーマに当たる。`gray` 系の 7 つの綴りは、大文字を混ぜても正しく塗る)
 - 値の数が奇数の `stroke-dasharray` を 2 回繰り返した並びに (評価版は値が 1 つの点線を実線で描く。`-.->` の点線に当たる)、
   合計が 0 の `stroke-dasharray` (`0` や `0 0`。規則では実線と同じ) を `none` に (評価版は `0 0` のような点線を持つ図形があると図全体を描かない。
   Mermaid の状態遷移図・クラス図・ER 図・requirement 図と、非対称の形のノードを使うフローチャートに当たる)
 - 線の無い図形が `opacity` と `fill-opacity` を両方持つときは、`opacity` を `fill-opacity` に掛け合わせて外す
-  (評価版は `fill-opacity` と並ぶ `opacity` を無視する。ガントの区画の帯に当たる)
+  (評価版は `fill-opacity` と並ぶ `opacity` を無視する。ガントの区画の帯に当たる)。ただし `filter` を持つ図形 (`opacity` はフィルタの結果に、
+  `fill-opacity` は入力に掛かる) と、`<use>` などから id で参照される要素とその子孫・`<defs>` / `<symbol>` の中の要素 (参照する側から
+  線や矢印の印を受け継ぎうる) では掛け合わせず、元のまま残す (評価版ではこれらの `opacity` が無視されうる)
 - 要素の `style` に残った `!important` を外す (`<style>` を外した後は要素の `style` より強い指定が無いので効かない。
   評価版は `!important` の付いた宣言を無効として扱い、塗りを黒にし、点線なら図全体を描かない。Mermaid の `classDef` / `style` が付ける)
 
 確かめてある範囲: 書き換えの前後を Chromium で描くと、svglite 形の図・上の Mermaid の図 (journey 図を除く 19 枚と、C4・architecture・packet・
 kanban・`classDef` の点線・完了済みのタスクのあるガントなどの 14 枚)・matplotlib の図 (3.3〜3.11。`svg.fonttype` が `path` と `none`) で
-画素が一致すること。librsvg でも一致するが、librsvg は CSS の `white-space` と、`classDef` の奇数個の点線・合計 0 の点線を CSS の規則どおりに
+画素が一致すること。`<use>` で再利用する図形・`filter` を持つ図形・変数を定義する場所を変えた形を仕込んだ SVG でも、書き換える形は画素が一致し、
+1 つの値に書き換えられない形は止まる。librsvg でも一致するが、librsvg は CSS の `white-space` と、`classDef` の奇数個の点線・合計 0 の点線を CSS の規則どおりに
 描かないので、その部分だけは書き換えた後のほうが Chromium の描画に近い。Aspose.Slides の評価版で描くと、svglite 形の図の黒塗りが消え、
 Mermaid のフローチャート (`classDef` と `style` を使うもの・非対称の形のノードを含む)・シーケンス図・状態遷移図・クラス図・ER 図・
 requirement 図・ガント (完了済みのタスクと dark のテーマを含む)・gitGraph・円グラフ・mindmap が描かれること。
