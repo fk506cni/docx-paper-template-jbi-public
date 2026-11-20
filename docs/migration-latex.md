@@ -18,7 +18,8 @@ pandoc 3.6.4 (`docx-paper-template-pandoc` コンテナ) の `pandoc -f latex -t
 ## 0. 全体の流れ
 
 ```bash
-# 0. 骨格を写す (必須節の抜けが起きない)
+# 0. clone した直後に src/ に入っているサンプル論文を消し、骨格を写す (必須節の抜けが起きない)
+rm -rf src/main.md src/ref.bib src/cover-letter.md src/supplementary src/figs/*.svg
 cp data/journals/bhi/skeleton/main.md         src/main.md
 cp data/journals/bhi/skeleton/cover-letter.md src/cover-letter.md
 # 文例集: data/journals/bhi/skeleton/declarations.md (ビルドの対象外。Declarations を書くときに見る)

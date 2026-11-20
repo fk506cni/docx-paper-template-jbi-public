@@ -501,8 +501,10 @@ data/journals/<id>/
 
 - **入力ルート**: `.development` が有れば `data/dummy/`、無ければ `src/` (存在だけで判定し、中身は見ない)。環境変数 `INPUT_ROOT` と
   `--input` で上書きできる。原稿の正本は常に `src/` で、`data/source/` は git に入れたくない素材の置き場に限る。
-- clone した直後の `src/` は雛形 (`src/README.md` と空の `figs/`) だけで、`main.md` はまだ無い。まず `.development` でサンプルを
-  通し、`cp -r data/dummy/. src/` などで原稿を起こす。
+- clone した直後の `src/` には、BHI の Original Article の体裁のサンプル論文 (`data/dummy/bhi/` と同じ内容で、冒頭のコメントだけが
+  サンプルの説明になっている) が入っており、`.development` が無ければそのまま組める。自分の原稿はサンプルを消してから、骨格
+  (`data/journals/bhi/skeleton/`) か汎用のサンプル (`data/dummy/`) を写して起こす (`docs/usage-guide.md` §1)。
+  回帰スナップショットは入力ルートを明示して `data/dummy/` と `data/dummy/bhi/` を使うので、`src/` の中身に左右されない。
 - **コードとデータを分ける**: `main/` にはデータの生成物を置かない。段のコードは `main/stepNN_name/`、段の出力は `data/stepNN_name/`。
 - **冪等性**: 同じ入力なら図の前処理・pptx・reference.docx は同じバイト列になる。docx は `docProps/core.xml` の作成時刻だけが変わる
   (回帰の比較は docx を zip の部品ごとに内容で比べる。`scripts/compare-snapshots.py`)。

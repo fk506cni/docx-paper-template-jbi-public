@@ -3,6 +3,17 @@
 All notable changes to this project are recorded in this file.
 Versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.1.2 — sample manuscript in src/
+
+### Added
+
+- **Sample manuscript in `src/`**: a fresh clone has a complete sample paper in `src/` (`main.md`,
+  `ref.bib`, `cover-letter.md`, two figures and a supplementary file), so `bash scripts/build.sh
+  --journal bhi --article-type original` and `bash scripts/package.sh --journal bhi --mode final` run
+  without `.development`. It is the clearly fictional "TJD / THS" parody written to the BHI Original
+  Article format, the same paper as `data/dummy/bhi/`. The README, `src/README.md` and the usage guide
+  describe how to remove it and start from the BHI skeleton or the generic sample.
+
 ## 0.1.1 — fixes
 
 ### Fixed

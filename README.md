@@ -122,13 +122,21 @@ bash scripts/diff.sh data/dummy/main.md jank/main-new.md
 bash scripts/package.sh --journal _default --mode draft
 #    -> data/output/_default/
 
-# 6. BHI sample: build, then assemble the final submission package
+# 6. The sample manuscript in src/ (a BHI Original Article): build, then assemble the final
+#    submission package. Without .development the input root is src/.
 #    (the first final run also builds the svg-conversion image, which outlines the figure text;
 #     building it downloads the Microsoft Core Fonts and accepts their EULA, see Requirements)
-bash scripts/build.sh   --journal bhi --article-type original --input data/dummy/bhi
-bash scripts/package.sh --journal bhi --mode final --input data/dummy/bhi
+rm -f .development
+bash scripts/build.sh   --journal bhi --article-type original
+bash scripts/package.sh --journal bhi --mode final
 #    -> data/output/bhi/ (manuscript.docx, tables/*.docx, figures/*.pptx, SUBMISSION.md, CAPTIONS.md, ...)
 ```
+
+`src/` holds a complete sample paper right after cloning: a clearly fictional parody (the "TJD / THS"
+story; all authors, affiliations and data are invented) written to the BHI Original Article
+format, with its references, cover letter, two figures and a supplementary file. Building the image
+and running the commands of the last block are enough to see the whole BHI path. The same paper is
+kept in `data/dummy/bhi/` for the checks.
 
 Open the resulting files in Word. In `data/step03_diff/main_diff.docx` the changed number in the
 abstract is highlighted. `data/output/bhi/manuscript.docx` has no tables in it: each table is in its
@@ -143,13 +151,15 @@ to tell you so.
 ### Start your own manuscript
 
 ```bash
-rm .development                 # the input root switches from data/dummy/ to src/
+rm -f .development              # the input root is src/
 rm -f data/step03_diff/*.docx data/step03_diff/.main_diff.source   # drop the sample diff made above
-cp -r data/dummy/. src/         # start from the generic sample, then edit src/main.md
+rm -rf src/main.md src/ref.bib src/cover-letter.md src/supplementary src/figs/*.svg   # remove the sample in src/
+cp data/journals/bhi/skeleton/main.md src/main.md   # BHI: start from the skeleton (fields to fill are <<...>>)
 ```
 
-For BHI, start from the skeleton instead (`cp data/journals/bhi/skeleton/main.md src/main.md`)
-and follow the BHI walkthrough in [docs/usage-guide.md](docs/usage-guide.md).
+For BHI, follow the walkthrough in [docs/usage-guide.md](docs/usage-guide.md). For another journal,
+start from the generic sample instead of the skeleton
+(`cp data/dummy/main.md data/dummy/ref.bib src/ && cp -r data/dummy/figs/. src/figs/`).
 Keep your manuscript under `src/` and commit it as usual; generated files go to `data/` and are
 ignored by git.
 
@@ -174,7 +184,8 @@ and the three PDF scripts print their usage with `--help`. Script messages and t
 
 ```
 .
-├── src/              # your manuscript: main.md, ref.bib, figs/ (+ cover-letter.md, revise-report.md)
+├── src/              # your manuscript: main.md, ref.bib, figs/ (+ cover-letter.md, revise-report.md, supplementary/)
+│                     #   (holds the BHI sample paper until you replace it)
 ├── data/
 │   ├── journals/     # journal profiles: _default/ and bhi/ (bhi/skeleton/ = manuscript skeleton)
 │   ├── dummy/        # sample manuscripts and test fixtures (used while .development exists)

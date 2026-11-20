@@ -100,13 +100,19 @@ bash scripts/diff.sh data/dummy/main.md jank/main-new.md
 bash scripts/package.sh --journal _default --mode draft
 #    -> data/output/_default/
 
-# 6. BHI のサンプル: ビルドしてから最終提出パッケージを組み立てる
+# 6. src/ のサンプル原稿 (BHI の Original Article): ビルドしてから最終提出パッケージを組み立てる。
+#    .development が無ければ入力ルートは src/
 #    (初回の最終モードでは、図の文字をアウトライン化する svg-conversion のイメージもビルドされる。
 #     ビルドすると Microsoft Core Fonts を取得し、その使用許諾に同意したことになる。上の「必要なもの」を参照)
-bash scripts/build.sh   --journal bhi --article-type original --input data/dummy/bhi
-bash scripts/package.sh --journal bhi --mode final --input data/dummy/bhi
+rm -f .development
+bash scripts/build.sh   --journal bhi --article-type original
+bash scripts/package.sh --journal bhi --mode final
 #    -> data/output/bhi/ (manuscript.docx, tables/*.docx, figures/*.pptx, SUBMISSION.md, CAPTIONS.md, ...)
 ```
+
+clone した直後の `src/` には、完結したサンプル論文が入っています。明らかなフィクションのパロディ (「TJD / THS」の物語。
+著者・所属・データはすべて架空) を BHI の Original Article の体裁で書いたもので、文献・カバーレター・図 2 枚・補足資料も
+そろっています。手順 1 と 6 だけで BHI の流れを一通り見られます。同じ論文の写しは検査用に `data/dummy/bhi/` にもあります。
 
 できたファイルを Word で開いてください。`data/step03_diff/main_diff.docx` では抄録の数字の変更に色が付いています。
 `data/output/bhi/manuscript.docx` には表が残らず、表は 1 表ずつ `data/output/bhi/tables/` に、図の凡例は References の後に、
@@ -118,13 +124,14 @@ bash scripts/package.sh --journal bhi --mode final --input data/dummy/bhi
 ### 自分の原稿を始める
 
 ```bash
-rm .development                 # 入力ルートが data/dummy/ から src/ に切り替わる
+rm -f .development              # 入力ルートは src/
 rm -f data/step03_diff/*.docx data/step03_diff/.main_diff.source   # 手順 4 のサンプルの差分を片づける
-cp -r data/dummy/. src/         # 汎用のサンプルを写してから src/main.md を書き換える
+rm -rf src/main.md src/ref.bib src/cover-letter.md src/supplementary src/figs/*.svg   # src/ のサンプルを消す
+cp data/journals/bhi/skeleton/main.md src/main.md   # BHI に出すなら骨格から (記入欄は <<...>>)
 ```
 
-BHI に出すなら骨格から始め (`cp data/journals/bhi/skeleton/main.md src/main.md`)、
-[docs/usage-guide.md](docs/usage-guide.md) の BHI の通し手順に沿ってください。
+BHI に出すなら [docs/usage-guide.md](docs/usage-guide.md) の BHI の通し手順に沿ってください。ほかの誌に出すなら、骨格の代わりに
+汎用のサンプルから始めます (`cp data/dummy/main.md data/dummy/ref.bib src/ && cp -r data/dummy/figs/. src/figs/`)。
 原稿は `src/` に置いてふつうに commit します。生成物は `data/` に出て、git の対象外です。
 
 ## 主なコマンド
@@ -148,7 +155,8 @@ BHI に出すなら骨格から始め (`cp data/journals/bhi/skeleton/main.md sr
 
 ```
 .
-├── src/              # あなたの原稿: main.md, ref.bib, figs/ (+ cover-letter.md, revise-report.md)
+├── src/              # あなたの原稿: main.md, ref.bib, figs/ (+ cover-letter.md, revise-report.md, supplementary/)
+│                     #   (置き換えるまでは BHI のサンプル論文が入っている)
 ├── data/
 │   ├── journals/     # 雑誌プロファイル: _default/ と bhi/ (bhi/skeleton/ = 原稿の骨格)
 │   ├── dummy/        # サンプル原稿と検査用フィクスチャ (.development があるときの入力)

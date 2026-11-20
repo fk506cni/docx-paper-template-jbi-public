@@ -16,7 +16,7 @@ clone してから投稿パッケージを作るまでの手順をまとめる�
 | `.development` | 入力ルート | 用途 |
 |---------------|-----------|------|
 | 有り (`echo dev > .development`) | `data/dummy/` | 同梱のサンプル原稿で動作を確かめる |
-| 無し (`rm .development`) | `src/` | 自分の原稿 |
+| 無し (`rm .development`) | `src/` | 自分の原稿 (clone した直後は BHI の Original Article の体裁のサンプル論文が入っている) |
 
 環境変数 `INPUT_ROOT=...` か `--input <dir>` でも上書きできる (優先順は 環境変数 > `--input` > `.development`)。
 
@@ -47,24 +47,34 @@ bash scripts/package.sh --journal _default --mode draft   # → data/output/_def
 
 ## 1. 新しい論文を始める
 
+clone した直後の `src/` には、BHI の Original Article の体裁のサンプル論文 (TJD/THS のパロディ。著者・所属・データは
+すべて架空) が一式入っている (`main.md`・`ref.bib`・`cover-letter.md`・`figs/` の図 2 枚・`supplementary/`)。
+`.development` が無ければそのまま組める (`bash scripts/build.sh --journal bhi --article-type original`)。
+同じ論文の写しは検査用に `data/dummy/bhi/` にもある。自分の論文を始めるときは、まずこのサンプルを消す:
+
 ```bash
-cp -r data/dummy/. src/        # サンプル一式を src/ へ複製して雛形にする
-rm .development                # 入力ルートを data/dummy → src に切り替える
-$EDITOR src/main.md            # 自分の原稿に書き換える
+rm -f .development             # 入力ルートを src に
+rm -rf src/main.md src/ref.bib src/cover-letter.md src/supplementary src/figs/*.svg   # src/ のサンプルを消す
 ```
 
-**投稿先が BHI と決まっているなら、汎用サンプルではなく原稿骨格から始める** (§8.1)。骨格は必須節
+**投稿先が BHI と決まっているなら、原稿骨格から始める** (§8.1)。骨格は必須節
 (Title page / Abbreviations / Declarations 6 項目) を記入式で持つので、書き漏らしが起きない。
 
 ```bash
 cp data/journals/bhi/skeleton/main.md         src/main.md
 cp data/journals/bhi/skeleton/cover-letter.md src/cover-letter.md
+$EDITOR src/main.md            # 記入欄 <<...>> を埋める
 #  Declarations 6 項目の文例は data/journals/bhi/skeleton/declarations.md (参照用。ビルドの対象外)
-#  記入済みの動作例:  bash scripts/build.sh --journal bhi --article-type original --input data/dummy/bhi
+#  記入済みの見本は、消す前の src/ のサンプル (= data/dummy/bhi/)
 ```
 
-> `cp -r data/dummy/. src/` は `data/dummy/` の下のサブディレクトリ (`bhi/` `bhi-csl/` `bhi-lint/` `regression/`) も
-> 一緒に複製する。ビルドが読むのは `src/main.md` とそこから参照するファイルだけなので害は無いが、要らなければ消してよい。
+ほかの誌に出すなら、骨格の代わりに雑誌によらない汎用のサンプル (図・数式・表・テキストボックス・査読対応の全要素入り) から始める:
+
+```bash
+cp data/dummy/main.md data/dummy/ref.bib data/dummy/cover-letter.md data/dummy/revise-report.md src/
+cp -r data/dummy/figs/. src/figs/
+$EDITOR src/main.md            # 自分の原稿に書き換える
+```
 
 `src/main.md` の要点 (詳しくは `CLAUDE.md` の「原稿執筆の規約」):
 
@@ -589,12 +599,14 @@ bash scripts/roundtrip.sh --no-package    # 提出パッケージ (data/output/<
 ### 8.1 執筆を始める
 
 ```bash
+rm -rf src/main.md src/ref.bib src/cover-letter.md src/supplementary src/figs/*.svg   # clone した直後に入っているサンプルを消す
 cp data/journals/bhi/skeleton/main.md         src/main.md
 cp data/journals/bhi/skeleton/cover-letter.md src/cover-letter.md
 rm -f .development
 ```
 
-骨格は必須節を記入式で持ち、記入欄は `<<...>>` で書いてある。**埋め忘れは §8.3 の規定チェックが `main.md` /
+サンプルを消さずに骨格の `main.md` だけを上書きすると、サンプルの文献・図・補足資料 (`src/supplementary/` は提出物に無変換で
+複製される) が残る。骨格は必須節を記入式で持ち、記入欄は `<<...>>` で書いてある。**埋め忘れは §8.3 の規定チェックが `main.md` /
 `cover-letter.md` の両方について件数と行番号つきで指摘する**。Declarations 6 項目の文例は
 `data/journals/bhi/skeleton/declarations.md` (参照用)。記入済みの動作例は `data/dummy/bhi/` で、`--input data/dummy/bhi` を
 付ければそのままビルドできる。
