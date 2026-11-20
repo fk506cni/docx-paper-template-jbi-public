@@ -81,12 +81,6 @@ if [ ! -d "data/journals/$JOURNAL" ]; then
     exit 1
 fi
 
-# reference.docx は make-reference.sh が profile.yaml から作る生成物。無ければここで作る
-# (_default と、自前の reference.docx を使う設定の対象誌。scripts/lib/ensure-reference.sh)
-# shellcheck source=lib/ensure-reference.sh
-. "$SCRIPT_DIR/lib/ensure-reference.sh"
-ensure_reference_docx "$JOURNAL"
-
 RUN="docker compose -f $COMPOSE_FILE run --rm -u $(id -u):$(id -g) pandoc"
 
 echo "== Step 02 原稿ビルド =="
@@ -159,6 +153,13 @@ if ! vis_out="$(docker compose -f "$COMPOSE_FILE" run --rm -T -u "$(id -u):$(id 
     esac
     exit 1
 fi
+
+# reference.docx は make-reference.sh が profile.yaml から作る生成物。無ければここで作る
+# (_default と、自前の reference.docx を使う設定の対象誌。scripts/lib/ensure-reference.sh)。
+# 生成はコンテナを使うので、Docker が動いていないときの案内を上の確かめで先に出せるよう、その後に置く
+# shellcheck source=lib/ensure-reference.sh
+. "$SCRIPT_DIR/lib/ensure-reference.sh"
+ensure_reference_docx "$JOURNAL"
 
 # --- 同じ作業ツリーでの build / diff / package の同時実行を止める ---
 # (build に加えて diff と package も同じロックを取る)

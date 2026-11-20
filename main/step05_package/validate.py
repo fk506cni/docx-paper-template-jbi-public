@@ -1101,6 +1101,23 @@ def count_textbox_floats(floats):
             [t for t in floats["tables"] if t["in_textbox"]])
 
 
+def _restructure_desc(profile):
+    """最終パッケージの組み替えのうち、この誌で働くものの呼び名 (「表の別ファイル化・図凡例の集約」など)。無ければ空文字。
+
+    表を末尾へ移すか別ファイルにするかは誌の tables.placement で決まるので、文面もそれに合わせる
+    (BHI の既定は別ファイル。lint_references_last と同じ扱い)。
+    """
+    parts = []
+    placement = (profile.get("tables") or {}).get("placement")
+    if placement == "end":
+        parts.append("表の末尾移設")
+    elif placement == "separate":
+        parts.append("表の別ファイル化")
+    if (profile.get("figures") or {}).get("legends_section"):
+        parts.append("図凡例の集約")
+    return "・".join(parts)
+
+
 def lint_textbox_floats(floats, profile):
     """`.textbox` の中に図表があることを知らせる。
 
@@ -1140,7 +1157,7 @@ def lint_textbox_floats(floats, profile):
         f".textbox の中に図 {len(box_figs)} 点・表 {len(box_tbls)} 点があります ({locs})。"
         f"これらは上の合計点数 {n_body} 点 (上限 {limit} 点) に数えていないため、"
         "上限の検査はこれらを見落としています。"
-        "textbox 内の図表は提出構成の組み替え (末尾移設・図凡例の集約) の対象外なので、"
+        f"textbox 内の図表は提出構成の組み替え ({_restructure_desc(profile) or '図の分離'}) の対象外なので、"
         "最終提出 docx では本文に埋め込まれたまま残ります "
         "(規定は図を原稿ファイルに埋め込むことを禁じています)。"
         "題・凡例の語数検査も掛かりません。本文の流れの上に置き直してください")]
@@ -1576,8 +1593,9 @@ def validate(input_root, profile, article_type=None, journal_id=None, estimate=N
     # いなければ lint も出ないため)。
     box_figs, box_tbls = count_textbox_floats(floats)
     if box_figs or box_tbls:
+        restructure = _restructure_desc(profile) or "図の分離"
         _say(f"        うち .textbox 内 図 {len(box_figs)} 点・表 {len(box_tbls)} 点は"
-             "上限の対象外 (本文の流れの外にあり、末尾移設の対象からも外れる)")
+             f"上限の対象外 (本文の流れの外にあり、最終パッケージの{restructure}の対象からも外れる)")
     # 除外した凡例の内訳を必ず出す (除外は費用の見積もりを甘くする側に効くため、
     # 編集室の数え方が違ったときに足し戻せるようにする)
     if leg_fig or leg_tbl:

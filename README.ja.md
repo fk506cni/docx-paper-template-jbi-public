@@ -90,10 +90,10 @@ echo dev > .development
 bash scripts/build.sh
 #    -> data/step02_build/main.docx
 
-# 4. 原稿の 2 版の差分 (色付き)
+# 4. 原稿の 2 版の差分 (色付き)。図は入力ルートから探すので --input で入力ルートを指す
 mkdir -p jank
 sed 's/Twenty trials/Twenty-four trials/' data/dummy/main.md > jank/main-new.md
-bash scripts/diff.sh data/dummy/main.md jank/main-new.md
+bash scripts/diff.sh data/dummy/main.md jank/main-new.md --input data/dummy
 #    -> data/step03_diff/main_diff.docx
 
 # 5. 汎用プロファイルで草稿パッケージ (図は埋め込んだまま)
@@ -119,20 +119,28 @@ clone した直後の `src/` には、完結したサンプル論文が入って
 図そのものは `data/output/bhi/figures/` にあります。`data/output/bhi/SUBMISSION.md` には、アップロードするファイルの一覧・
 規定チェックの結果・投稿前に目を通す注意がまとまっています。`data/output/bhi/CAPTIONS.md` は Caption / Legend 欄に貼る文面です。
 この手順では、`manuscript-diff.docx` が別の原稿から作られているという注意も出ます。手順 4 の差分 (汎用のサンプル) が
-パッケージに集められたことを知らせるものです。
+パッケージに集められたことを知らせるものです。`src/` の原稿が同梱のサンプル論文そのものであるという注意も出ます。
 
 ### 自分の原稿を始める
 
 ```bash
 rm -f .development              # 入力ルートは src/
 rm -f data/step03_diff/*.docx data/step03_diff/.main_diff.source   # 手順 4 のサンプルの差分を片づける
-rm -rf src/main.md src/ref.bib src/cover-letter.md src/supplementary src/figs/*.svg   # src/ のサンプルを消す
+bash scripts/remove-sample.sh   # src/ のサンプルを消す (サンプルのまま変わっていないファイルだけ)
 cp data/journals/bhi/skeleton/main.md src/main.md   # BHI に出すなら骨格から (記入欄は <<...>>)
 ```
 
-BHI に出すなら [docs/usage-guide.md](docs/usage-guide.md) の BHI の通し手順に沿ってください。ほかの誌に出すなら、骨格の代わりに
-汎用のサンプルから始めます (`cp data/dummy/main.md data/dummy/ref.bib src/ && cp -r data/dummy/figs/. src/figs/`)。
+`scripts/remove-sample.sh` は中身がサンプルのままのファイルだけを消すので、自分で書いたファイルは消さず、何度打っても害はありません。
+自分の `main.md` の隣にサンプルのファイルが残っていると最終提出のパッケージは止まります (サンプルのカバーレターと補足資料が
+提出物に入らないように)。
+
+BHI に出すなら [docs/usage-guide.md](docs/usage-guide.md) §8 の BHI の通し手順に沿ってください。ほかの誌に出すなら、骨格の代わりに
+汎用のサンプルから始めます (コマンドは同じガイドの §1)。
 原稿は `src/` に置いてふつうに commit します。生成物は `data/` に出て、git の対象外です。
+
+すでに `src/` に自分の原稿を置いていて 0.1.0 か 0.1.1 から更新すると、自分のファイルの隣にサンプルのファイルが足されます
+(自分の `src/main.md` と `src/ref.bib` を commit していれば衝突します)。自分の版を残し、`bash scripts/remove-sample.sh` で
+サンプルの残りを消してください。
 
 ## 主なコマンド
 
@@ -145,10 +153,11 @@ BHI に出すなら [docs/usage-guide.md](docs/usage-guide.md) の BHI の通し
 | `bash scripts/check-csl.sh [--docx <file>]` | 整形した文献リストを期待値のフィクスチャと照合する |
 | `bash data/journals/make-reference.sh <id>` | 雑誌の `reference.docx` を `profile.yaml` から生成する。ファイルが無ければ `build.sh` と `diff.sh` が自動で回す。`profile.yaml` の体裁を変えたら自分で回す |
 | `bash docker/mermaid/convert.sh <file.mmd> both` | Mermaid 図を単独で SVG と PDF に描画する (ビルドは `figs/mermaid/*.mmd` を自分で描くので要らない。見た目を確かめるだけなら `figs/` の外に写して描く) |
-| `bash scripts/push-win-tools.sh` / `check-pdf-path.sh` / `roundtrip.sh` | Word による PDF 化 (準備 / 診断 / 変換。任意。`roundtrip.sh` は最終提出用のパッケージを Drive の `submission-<journal>/` にも置く。今の原稿から作ったかを照合するので、クイックスタートの直後は `--no-package` か、`INPUT_ROOT=data/dummy/bhi` と `--skip-build` を付ける) |
+| `bash scripts/push-win-tools.sh` / `check-pdf-path.sh` / `roundtrip.sh` | Word による PDF 化 (準備 / 診断 / 変換。任意。`roundtrip.sh` は最終提出用のパッケージを Drive の `submission-<journal>/` にも置く。今の原稿から作ったかを照合するので、クイックスタートの直後は `--skip-build` を付けて手順 6 で `src/` から作ったパッケージを使うか、`--no-package` でパッケージを外す) |
+| `bash scripts/remove-sample.sh [--dry-run]` | `src/` のサンプル論文を消す (サンプルのまま変わっていないファイルだけ) |
 | `bash scripts/baseline.sh <接尾辞>` / `baseline-bhi.sh <接尾辞>` / `scripts/compare-snapshots.py` | ビルド成果物の回帰スナップショットと、その比較 |
 
-`build.sh`・`diff.sh`・`package.sh`・`check-figures.sh`・`check-csl.sh`・`baseline.sh`・`baseline-bhi.sh` と PDF 化の 3 本は `--help` で使い方を表示します。
+`build.sh`・`diff.sh`・`package.sh`・`check-figures.sh`・`check-csl.sh`・`baseline.sh`・`baseline-bhi.sh`・`remove-sample.sh` と PDF 化の 3 本は `--help` で使い方を表示します。
 スクリプトのメッセージと詳しいガイドは日本語です。
 
 ## ディレクトリ構成

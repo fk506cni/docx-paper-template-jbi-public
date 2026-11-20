@@ -251,15 +251,42 @@ def main():
 
     figs_out.mkdir(parents=True, exist_ok=True)
 
+    # --- Mermaid の単独描画の残骸 ---
+    #     `docker/mermaid/convert.sh figs/mermaid/<名前>.mmd both` を単独で回すと、.mmd の隣に
+    #     <名前>.svg / <名前>.pdf が残る。下の PDF のループがそれを拾うと、figures.sh が .mmd から
+    #     作り直した図を古い PDF 由来の SVG で黙って上書きし、.mmd を直しても古い図のまま提出される。
+    #     .mmd がある以上その .svg / .pdf は作り直せる残骸なので、読み飛ばして警告する
+    #     (ビルドは止めない)。.mmd の無い mermaid/ 配下の PDF は従来どおり扱う。
+    #     figures.sh が描くのは figs/mermaid/*.mmd (最上位) だけなので、残骸とみなすのも最上位の .mmd と
+    #     同じ名前のものだけにする (下位フォルダの .mmd は描かれないので、隣の PDF は通常の図として変換する)。
+    #     package.py の _mermaid_generated (出所の記録・入力のハッシュ・Mermaid の正本 PDF の判定) と同じ条件。
+    #     残骸ではない mermaid/ 配下の図 (.mmd の無い手書きの SVG・ラスタ・PDF、下位フォルダの図) は、ほかのフォルダの図と
+    #     同じく前処理する (読み飛ばすと、原稿が参照していれば build が図の数の食い違いで止まる)
+    mmd_stems = {rel.with_suffix("") for _, rel in iter_files(figs_in, ".mmd")
+                 if len(rel.parts) == 2 and rel.parts[0] == "mermaid"}
+
+    def _mermaid_leftover(rel):
+        return bool(rel.parts) and rel.parts[0] == "mermaid" and rel.with_suffix("") in mmd_stems
+
+    def _warn_leftover(rel):
+        sys.stderr.write(
+            f"  [警告] Mermaid の単独描画の残骸を無視しました: figs/{rel} "
+            f"(figs/{rel.with_suffix('.mmd')} から作り直した図を使います。この残骸は消してよい)\n")
+
+    # figures.sh が描かない .mmd (figs/mermaid/ の直下以外) は図にならない。原稿が参照していれば build が図の数の食い違いで
+    # 止まるので、理由をここで知らせる
+    for _, rel in iter_files(figs_in, ".mmd"):
+        if rel.with_suffix("") not in mmd_stems:
+            sys.stderr.write(
+                f"  [警告] figs/{rel} は図にしません (図の前処理が描くのは figs/mermaid/ の直下の .mmd だけ)。"
+                "原稿から参照するなら figs/mermaid/ の直下に移してください\n")
+
     # --- 同名 SVG / PDF 併存チェック ---
     #     figs/foo.svg と figs/foo.pdf が併存すると、後段 (PDF->SVG) の出力先が figs/foo.svg で
     #     手書き SVG と衝突し、PDF 由来 SVG が手書き SVG を無言で上書きしてしまう。事前に検知して止める。
-    #     mermaid/ 配下は別経路 (figures.sh が生成) なので除外する。
-    def _non_mermaid(rel):
-        return not (rel.parts and rel.parts[0] == "mermaid")
-
-    svg_stems = {rel.with_suffix("") for _, rel in iter_files(figs_in, ".svg") if _non_mermaid(rel)}
-    pdf_stems = {rel.with_suffix("") for _, rel in iter_files(figs_in, ".pdf") if _non_mermaid(rel)}
+    #     Mermaid の残骸は読み飛ばすので除外する (mermaid/ 配下でも残骸でなければ前処理するので検知の対象)。
+    svg_stems = {rel.with_suffix("") for _, rel in iter_files(figs_in, ".svg") if not _mermaid_leftover(rel)}
+    pdf_stems = {rel.with_suffix("") for _, rel in iter_files(figs_in, ".pdf") if not _mermaid_leftover(rel)}
     clash = sorted(str(s) for s in (svg_stems & pdf_stems))
     if clash:
         sys.stderr.write(
@@ -273,31 +300,11 @@ def main():
               "mermaid_svg": 0, "raster_copied": 0, "pdf_pt": 0}
     produced = []
 
-    # --- Mermaid の単独描画の残骸 ---
-    #     `docker/mermaid/convert.sh figs/mermaid/<名前>.mmd both` を単独で回すと、.mmd の隣に
-    #     <名前>.svg / <名前>.pdf が残る。下の PDF のループがそれを拾うと、figures.sh が .mmd から
-    #     作り直した図を古い PDF 由来の SVG で黙って上書きし、.mmd を直しても古い図のまま提出される。
-    #     .mmd がある以上その .svg / .pdf は作り直せる残骸なので、読み飛ばして警告する
-    #     (ビルドは止めない)。.mmd の無い mermaid/ 配下の PDF は従来どおり扱う。
-    #     figures.sh が描くのは figs/mermaid/*.mmd (最上位) だけなので、残骸とみなすのも最上位の .mmd と
-    #     同じ名前のものだけにする (下位フォルダの .mmd は描かれないので、隣の PDF は通常の図として変換する)。
-    mmd_stems = {rel.with_suffix("") for _, rel in iter_files(figs_in, ".mmd")
-                 if len(rel.parts) == 2 and rel.parts[0] == "mermaid"}
-
-    def _mermaid_leftover(rel):
-        return bool(rel.parts) and rel.parts[0] == "mermaid" and rel.with_suffix("") in mmd_stems
-
-    def _warn_leftover(rel):
-        sys.stderr.write(
-            f"  [警告] Mermaid の単独描画の残骸を無視しました: figs/{rel} "
-            f"(figs/{rel.with_suffix('.mmd')} から作り直した図を使います。この残骸は消してよい)\n")
-
     # --- 1. 手書き SVG: figs/<rel>.svg を出力ツリーへ複製 -> fix -> png ---
-    #     mermaid/ 配下は figures.sh が別途生成 (後段 3) するためここでは除外する。
+    #     Mermaid の残骸は除外する (同じ名前の図は figures.sh が .mmd から生成済み。後段 3)。
     for src_svg, rel in iter_files(figs_in, ".svg"):
-        if rel.parts and rel.parts[0] == "mermaid":
-            if _mermaid_leftover(rel):
-                _warn_leftover(rel)
+        if _mermaid_leftover(rel):
+            _warn_leftover(rel)
             continue
         dst = figs_out / rel
         dst.parent.mkdir(parents=True, exist_ok=True)
@@ -337,13 +344,12 @@ def main():
     #     resource-path に解決されず "Could not fetch resource" で図が欠落し、image-manifest の画像数と
     #     docx の図数がずれて build が中止する (回帰フィクスチャ data/dummy/regression で確かめる)。
     #     ベクター (svg/pdf) と違い変換は不要なので相対構造を保ってそのまま写す。生成フォールバック
-    #     (*.svg.png) と mermaid/ 配下は除外する。
+    #     (*.svg.png) は除外する。mermaid/ 配下のラスタも執筆者が置いた図なので写す
+    #     (Mermaid が作るのは SVG と PDF だけ)。
     RASTER_SUFFIXES = (".png", ".jpg", ".jpeg", ".tif", ".tiff")
     seen_raster = set()
     for suffix in RASTER_SUFFIXES:
         for src_raster, rel in iter_files(figs_in, suffix):
-            if rel.parts and rel.parts[0] == "mermaid":
-                continue
             if str(rel).endswith(".svg.png"):  # 生成済 PNG フォールバックは複製しない
                 continue
             if rel in seen_raster:             # 同一ファイルの二重処理ガード
@@ -360,8 +366,11 @@ def main():
     #     fix_svg_clips は svglite の textLength/clip 不具合専用で mermaid には無益。mermaid SVG は
     #     ダブルクオート属性のため _transform_text が no-op となり、clipPath を出す作図種別 (sequence 等)
     #     では <text> だけ移設されて図が崩れる恐れがある。よって mermaid には fix を適用しない。
-    mermaid_out = figs_out / "mermaid"
-    for svg, rel in iter_files(mermaid_out, ".svg"):
+    #     対象は figs/mermaid/ 直下の .mmd から作った SVG だけ (mermaid/ 配下の手書きの図は 1. と 2. で処理済み)。
+    for stem in sorted(mmd_stems):
+        svg = figs_out / stem.with_suffix(".svg")
+        if not svg.is_file():
+            continue
         counts["mermaid_svg"] += 1
         svg_to_png(svg)
         counts["png"] += 1

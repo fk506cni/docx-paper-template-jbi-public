@@ -120,8 +120,15 @@ if [ "$FINAL_PDF" -eq 1 ]; then
     svgs=("$OUT_ROOT"/figs/**/*.svg)
     shopt -u globstar nullglob
     for svg in "${svgs[@]}"; do
-        case "$svg" in
-            */mermaid/*) echo "   skip (mermaid 正本 pdf を保持): $svg"; continue ;;
+        # 正本 PDF を保持するのは figs/mermaid/ 直下の .mmd から作った図だけ (package.py の _mermaid_generated と同じ条件)。
+        # mermaid という名前のフォルダにある手書きの図や .mmd の無い図は、ほかの図と同じく変換する
+        rel="${svg#"$OUT_ROOT"/figs/}"
+        case "$rel" in
+            mermaid/*/*) ;;
+            mermaid/*)
+                if [ -f "$INPUT_ROOT/figs/mermaid/$(basename "$rel" .svg).mmd" ]; then
+                    echo "   skip (mermaid 正本 pdf を保持): $svg"; continue
+                fi ;;
         esac
         out_pdf="${svg%.svg}.pdf"
         bash docker/svg-conversion/convert.sh "$svg" "$out_pdf"

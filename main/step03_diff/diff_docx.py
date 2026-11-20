@@ -25,6 +25,8 @@ docs/architecture.md §2.3 / docs/design-fullarea-diff.md。pandiff は使わな
 
 import argparse
 import io
+import os
+import secrets
 import subprocess
 import sys
 import zipfile
@@ -112,19 +114,43 @@ def build_diff(input_root, journal_id, old_md, new_md, out, embed_svg=True, no_r
 
     out.parent.mkdir(parents=True, exist_ok=True)
 
+    # 一時名に書き、後処理まで成功したら out を置き換える (build_docx.py と同じ)。直接 out に書くと、図の件数の照合などで
+    # 止まったときに、図を説明文に置き換えた差分 docx が out に残り、package が提出物に集める。失敗したら前回の out が残る。
+    # 一時名に乱数を入れるのは、コンテナの中ではプロセス番号がいつも同じになるため
+    final_out, out = out, out.with_name(f".{out.stem}.building.{secrets.token_hex(4)}{out.suffix}")
+
     # --- 1+2. 旧/新 AST 化 → 構造保持 二層差分 → マージ AST ---
-    print(f"== 差分: {old_md} (旧) vs {new_md} (新) -> {out} ==")
+    print(f"== 差分: {old_md} (旧) vs {new_md} (新) -> {final_out} ==")
     print(f"  journal={journal_id}  reference={reference_doc}  csl={csl}")
     old_doc = _pandoc_to_ast(old_md)
     new_doc = _pandoc_to_ast(new_md)
     merged = ast_diff.diff_documents(old_doc, new_doc)
 
+    # 画像マニフェストのパスは最終の docx の名前のまま (pandoc はこのメタデータを docProps/custom.xml に書くので、
+    # 一時名にすると提出する差分 docx に一時ファイルの名前が入る)。中間ファイルは成功しても失敗しても消す
+    manifest = str(final_out) + ".images.tsv"
     merged_json = str(out) + ".merged.json"
+    try:
+        _render_diff_into(merged, merged_json, manifest, out, reference_doc, csl, resource_path, bib,
+                          embed_svg, no_relocate)
+    except BaseException:
+        # 失敗した版は残さない (前回の成功の out はそのまま)
+        out.unlink(missing_ok=True)
+        raise
+    finally:
+        Path(manifest).unlink(missing_ok=True)
+        Path(merged_json).unlink(missing_ok=True)
+    os.replace(out, final_out)
+    print(f"== 完了: {final_out} ==")
+
+
+def _render_diff_into(merged, merged_json, manifest, out, reference_doc, csl, resource_path, bib,
+                      embed_svg, no_relocate):
+    """マージ AST を out (一時名) の docx に描き、OOXML の後処理まで掛ける。失敗したら例外か SystemExit で抜ける。"""
     with open(merged_json, "w", encoding="utf-8") as f:
         pf.dump(merged, f)
 
     # --- 3. マージ AST を docx 化 (crossref → generic-style → citeproc → color-diff) ---
-    manifest = str(out) + ".images.tsv"
     cmd = [
         "pandoc", merged_json,
         "--defaults", DEFAULTS_YAML,
@@ -159,10 +185,6 @@ def build_diff(input_root, journal_id, old_md, new_md, out, embed_svg=True, no_r
         image_manifest=manifest,
     )
     _inject_diff_styles_into_docx(str(out))
-
-    Path(manifest).unlink(missing_ok=True)
-    Path(merged_json).unlink(missing_ok=True)
-    print(f"== 完了: {out} ==")
 
 
 def main(argv=None):

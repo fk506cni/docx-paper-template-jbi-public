@@ -113,9 +113,10 @@ bash scripts/build.sh
 #    -> data/step02_build/main.docx
 
 # 4. Change-highlighted diff between two versions of the manuscript
+#    (the figures are taken from the input root, so --input names it)
 mkdir -p jank
 sed 's/Twenty trials/Twenty-four trials/' data/dummy/main.md > jank/main-new.md
-bash scripts/diff.sh data/dummy/main.md jank/main-new.md
+bash scripts/diff.sh data/dummy/main.md jank/main-new.md --input data/dummy
 #    -> data/step03_diff/main_diff.docx
 
 # 5. Draft package with the generic profile (figures stay embedded)
@@ -146,22 +147,30 @@ upload, the rule-check results, and the points to review before submitting;
 `data/output/bhi/CAPTIONS.md` holds the text for the Caption / Legend fields. In this walkthrough
 `SUBMISSION.md` also carries a note that `manuscript-diff.docx` was made from a different
 manuscript: the package collects the diff of the generic sample made above, and the note is there
-to tell you so.
+to tell you so. Another note says that the manuscript in `src/` is the bundled sample paper itself.
 
 ### Start your own manuscript
 
 ```bash
 rm -f .development              # the input root is src/
 rm -f data/step03_diff/*.docx data/step03_diff/.main_diff.source   # drop the sample diff made above
-rm -rf src/main.md src/ref.bib src/cover-letter.md src/supplementary src/figs/*.svg   # remove the sample in src/
+bash scripts/remove-sample.sh   # remove the sample in src/ (only files unchanged from the sample)
 cp data/journals/bhi/skeleton/main.md src/main.md   # BHI: start from the skeleton (fields to fill are <<...>>)
 ```
 
-For BHI, follow the walkthrough in [docs/usage-guide.md](docs/usage-guide.md). For another journal,
-start from the generic sample instead of the skeleton
-(`cp data/dummy/main.md data/dummy/ref.bib src/ && cp -r data/dummy/figs/. src/figs/`).
+`scripts/remove-sample.sh` removes only the files whose content is still that of the sample, so it never
+removes a file you wrote, and running it again is harmless. A final package stops while files of the
+sample remain next to a `main.md` of your own, so that the sample cover letter and supplementary file
+do not end up in your submission.
+
+For BHI, follow the walkthrough in [docs/usage-guide.md](docs/usage-guide.md) §8. For another journal,
+start from the generic sample instead of the skeleton (the commands are in §1 of the same guide).
 Keep your manuscript under `src/` and commit it as usual; generated files go to `data/` and are
 ignored by git.
+
+If you already keep your own manuscript in `src/` and update from 0.1.0 or 0.1.1, the update adds the
+sample files next to yours (`src/main.md` and `src/ref.bib` conflict if you committed your own). Keep
+your own versions and run `bash scripts/remove-sample.sh` to remove the rest of the sample.
 
 ## Main commands
 
@@ -174,11 +183,12 @@ ignored by git.
 | `bash scripts/check-csl.sh [--docx <file>]` | Compares formatted references with a fixture of expected output |
 | `bash data/journals/make-reference.sh <id>` | Generates a journal's `reference.docx` from its `profile.yaml`. `build.sh` and `diff.sh` run it when the file is missing; run it yourself after you change the page setup in `profile.yaml` |
 | `bash docker/mermaid/convert.sh <file.mmd> both` | Renders a Mermaid diagram to SVG and PDF on its own (not needed for builds, which render `figs/mermaid/*.mmd` themselves; render a copy outside `figs/` when you only want to look at it) |
-| `bash scripts/push-win-tools.sh` / `check-pdf-path.sh` / `roundtrip.sh` | Optional PDF output through Word (setup / diagnosis / conversion; `roundtrip.sh` also places a final submission package in the Drive folder `submission-<journal>/`, after checking that it was built from the current manuscript; right after the quick start, add `--no-package`, or `INPUT_ROOT=data/dummy/bhi` together with `--skip-build`) |
+| `bash scripts/push-win-tools.sh` / `check-pdf-path.sh` / `roundtrip.sh` | Optional PDF output through Word (setup / diagnosis / conversion; `roundtrip.sh` also places a final submission package in the Drive folder `submission-<journal>/`, after checking that it was built from the current manuscript; right after the quick start, add `--skip-build` so that the package built from `src/` by the last commands is kept, or `--no-package` to leave the package out) |
+| `bash scripts/remove-sample.sh [--dry-run]` | Removes the sample paper from `src/` (only the files unchanged from the sample) |
 | `bash scripts/baseline.sh <suffix>` / `baseline-bhi.sh <suffix>` / `scripts/compare-snapshots.py` | Regression snapshots of the build outputs and their comparison |
 
-`build.sh`, `diff.sh`, `package.sh`, `check-figures.sh`, `check-csl.sh`, `baseline.sh`, `baseline-bhi.sh`
-and the three PDF scripts print their usage with `--help`. Script messages and the detailed guides are in Japanese.
+`build.sh`, `diff.sh`, `package.sh`, `check-figures.sh`, `check-csl.sh`, `baseline.sh`, `baseline-bhi.sh`,
+`remove-sample.sh` and the three PDF scripts print their usage with `--help`. Script messages and the detailed guides are in Japanese.
 
 ## Repository layout
 

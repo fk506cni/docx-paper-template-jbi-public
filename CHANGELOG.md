@@ -3,6 +3,52 @@
 All notable changes to this project are recorded in this file.
 Versions follow [Semantic Versioning](https://semver.org/).
 
+## 0.1.3 — sample handling, diff provenance and figure fixes
+
+### Added
+
+- **`scripts/remove-sample.sh`**: removes the sample paper from `src/`, but only the files whose contents
+  still match the sample (`scripts/lib/sample-files.sha256`); edited files and your own files with the same
+  names are kept, so it is safe to run more than once (`--dry-run` lists what would be removed and kept).
+  The README, `src/README.md` and the guides use it instead of `rm -rf`.
+- **Leftover sample files stop a final package**: when `main.md` is not the sample but other sample files
+  (cover letter, supplementary file, references, figures) remain unchanged, `package.sh --mode final`
+  stops and lists them (a draft package notes them). Building the sample itself still works.
+
+### Fixed
+
+- **Documentation**: the `roundtrip.sh` hint for the state right after the quick start (use `--skip-build`;
+  `INPUT_ROOT=data/dummy/bhi` only for a package built with `--input data/dummy/bhi`). The diff command
+  of the quick start passes `--input data/dummy`, so it works without `.development`. If you update from
+  0.1.0 or 0.1.1 with your own manuscript in `src/`, the sample files are added next to yours: keep your
+  own versions and run `bash scripts/remove-sample.sh`.
+- **Diff provenance**: `diff.sh` records a hash of the other manuscript inputs (`ref.bib`, `cover-letter.md`,
+  `revise-report.md`, `figs/`) in `data/step03_diff/.main_diff.source`, and `SUBMISSION.md` notes when they
+  changed after the diff or when the record lacks the hash. `diff.sh` checks the figure provenance after the
+  diff and stops, deleting the diff it made, if the inputs or figures changed during the diff. A failed diff
+  leaves neither a broken `main_diff.docx` nor intermediate files (it is written under a temporary name).
+  `diff.sh` stops with a message when a manuscript is outside the repository or given as an absolute path.
+- **Mermaid figures**: only figures made from a `.mmd` directly in `figs/mermaid/` are kept as the Mermaid
+  PDF. Other figures in `figs/mermaid/` or in folders named `mermaid` (hand-made SVG, raster, PDF without a
+  `.mmd`, subfolders) are preprocessed and converted like any other figure, so a PDF-format final package
+  works with them. A `.mmd` that is not directly in `figs/mermaid/` is not drawn, and the preprocessing says so.
+- **Supplementary files**: packaging also stops on links to a folder that contains the input root, on folders
+  reached through a link that hold an item named `supplementary`, when `supplementary/` itself is such a
+  link, and on file links to the manuscript's `main.md` / `ref.bib` / `cover-letter.md` / `revise-report.md`.
+  A folder that can be listed but not entered gives a message instead of a traceback. Packaging that stops
+  part-way removes the half-built package and restores the previous one.
+- **PowerPoint figures (`figures.pptx.inline_css`)**: a `<use>` with both `href` and `xlink:href` is checked
+  against both targets; ids containing `:` or `=`, or percent-encoded, are recognised as references; the
+  `var()` check covers every SVG 1.1 and SVG 2 presentation attribute (such as `transform-origin`,
+  `mask-type` and `d`); `var()` in element `style` attributes is resolved also in an SVG without `<style>`;
+  a `var()` that resolves to an empty value stops the conversion; a `<style>` in a namespace other than
+  SVG or XHTML is not read as CSS.
+- **Figure numbers**: untitled images at the end of the manuscript are not listed as a cause of mismatched
+  figure numbers; `SUBMISSION.md` notes that they do not shift the numbering.
+- **Messages**: the Docker start-up message also appears on a fresh clone (before `reference.docx` is
+  generated); a figure provenance record with a repeated key is treated as broken; the rule-check notes on
+  text boxes name the restructuring the journal uses.
+
 ## 0.1.2 — sample manuscript in src/
 
 ### Added

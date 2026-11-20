@@ -425,6 +425,19 @@ def manuscript_figures(input_root, body_only=False):
     return [m.group(1) for m in re.finditer(r"!\[[^\]]*\]\(([^)\s]+)", text)]
 
 
+def _mermaid_generated(rel_in_figs, input_root):
+    """figs/ からの相対パス rel_in_figs が、図の前処理が figs/mermaid/ 直下の .mmd から作る図の名前か。
+
+    図の前処理 (figures.sh) が描くのは figs/mermaid/ 直下の .mmd だけで、作った .svg / .pdf を figs/mermaid/ 直下に置く。
+    Mermaid の正本 PDF を作り直さない図 (figure-plan)・出所の記録に入れる PDF (_figure_outputs)・入力のハッシュから除く
+    生成物の残り (_inputs_sha256) は、どれもこの 1 つの定義で決める (食い違うと、記録しない PDF を作り直さずに探して
+    最終提出が必ず止まるため)。process_figures.py の _mermaid_leftover も同じ条件。
+    """
+    parts = Path(rel_in_figs).parts
+    return (input_root is not None and len(parts) == 2 and parts[0] == "mermaid"
+            and (Path(input_root) / "figs" / "mermaid" / (Path(parts[1]).stem + ".mmd")).is_file())
+
+
 def _resolve_fig_sources(rel, input_root=None):
     """原稿の図参照 rel (例 figs/fig-overview.svg) を step01 の実体に解決する。
 
@@ -469,7 +482,9 @@ def _resolve_fig_sources(rel, input_root=None):
     src_pptx = _sibling(".pptx")
     src_macro = next((p for p in (_sibling(s) for s in svg_pptx.MACRO_SUFFIXES) if p.is_file()),
                      None)
-    is_mermaid = len(rel_path.parts) >= 2 and "mermaid" in rel_path.parts
+    # figs/mermaid/ 直下の .mmd から作った図だけ (mermaid という名前のフォルダにある手書きの図や .mmd の無い図は含めない)
+    is_mermaid = (len(rel_path.parts) > 1 and rel_path.parts[0] == "figs"
+                  and _mermaid_generated(Path(*rel_path.parts[1:]), input_root))
     return {"svg": svg, "pdf": pdf, "png": png, "outline_svg": outline_svg,
             "safe_svg": safe_svg,
             "src_pptx": src_pptx, "src_macro": src_macro,
@@ -1201,7 +1216,111 @@ def _is_junk(rel):
     return any(part.lower() in JUNK_DIRS for part in rel.parts[:-1])
 
 
-def copy_supplementary(input_root, profile, out_dir, warnings, flags=None):
+def scan_supplementary(input_root):
+    """`<INPUT_ROOT>/supplementary/` の中の複製するファイルを集める。複製できない・入れてはいけないものがあれば止める。
+
+    すでにあるパッケージを片づける前に呼ぶ (止まったときに確かめ済みのパッケージを残すため)。
+    返り値: 複製するファイルの Path のリスト (supplementary/ が無ければ空)。
+
+    中のディレクトリのリンクもたどって数える (rglob はたどらない)。自分の祖先と同じ実体のディレクトリ (ループ) には入らない
+    (_inputs_sha256 と同じ扱い)。次のどれかがあれば止める (補足資料は無変換で公開され、受理後は差し替えられないので、
+    黙って抜けたり、原稿などの入力が混ざったりしないように):
+      - リンクなのに中身が見えないもの (コンテナから見えない場所を指すリンク・行き先の無いリンク)
+      - 読めないディレクトリ・ファイル (一覧はできるが中に入れないディレクトリの中身を含む)
+      - 原稿などの入力を含みうるディレクトリを指すリンク: 入力ルートの実体を含むディレクトリ (入力ルートそのもの・その祖先) と、
+        リンクでたどった先の、直下に supplementary という名前の項目があるディレクトリ (別の入力ルートなど)。
+        supplementary/ そのものがそういう場所を指すリンクのときも止める
+      - 入力ルートの原稿の入力 (main.md / ref.bib / cover-letter.md / revise-report.md) を指すファイルのリンク
+    入力ルートの中の別のフォルダ (figs/ など)・入力ルートの外の補足資料用のフォルダを指すリンクは、補足資料に入れるものとして通す。
+    """
+    src_root = Path(input_root) / SUPP_DIRNAME
+    if not src_root.is_dir():
+        # リンクなのに読めない (コンテナから見えない場所を指す) なら止める。黙って「補足資料なし」にすると、
+        # 査読の対象で受理後は差し替えられない資料が提出物から抜ける
+        if src_root.is_symlink() or (src_root.exists() and not src_root.is_dir()):
+            sys.exit(f"エラー: {src_root} はディレクトリとして読めません (コンテナから見えない場所を指すリンクか、"
+                     "ファイル)。補足資料を提出物に入れられないので止めます。実体をリポジトリの中に置くか、"
+                     "リポジトリの中を指す相対リンクにしてください。")
+        return []
+
+    files, unseen, unreadable, outer, inputs, chain = [], [], [], [], [], {}
+    real_root = os.path.realpath(src_root)
+    real_input = Path(os.path.realpath(input_root))
+    input_files = {os.path.realpath(Path(input_root) / n)
+                   for n in ("main.md", "ref.bib", "cover-letter.md", "revise-report.md")}
+
+    def _rel(path):
+        r = os.path.relpath(path, src_root)
+        return "(supplementary/ そのもの)" if r == "." else Path(r).as_posix()
+
+    def _walk_error(err):
+        unreadable.append(_rel(err.filename) if err.filename else "(supplementary/ そのもの)")
+
+    def _holds_inputs(real_dir, via_link):
+        """原稿などの入力を含みうるディレクトリか (入力ルートの実体を含むか、リンクでたどった先で直下に supplementary があるか)。"""
+        if real_input.is_relative_to(real_dir):
+            return True
+        return via_link and os.path.lexists(os.path.join(real_dir, SUPP_DIRNAME))
+
+    if _holds_inputs(real_root, src_root.is_symlink()):
+        outer.append(_rel(src_root))
+    else:
+        for dirpath, dirs, names in os.walk(src_root, followlinks=True, onerror=_walk_error):
+            ancestors = chain.get(dirpath, frozenset()) | {os.path.realpath(dirpath)}
+            keep = []
+            for d in dirs:
+                sub = os.path.join(dirpath, d)
+                real_sub = os.path.realpath(sub)
+                if real_sub in ancestors:
+                    continue
+                # supplementary/ の実体の外に出たディレクトリは、リンクでたどった先とみなす
+                if _holds_inputs(real_sub, not Path(real_sub).is_relative_to(real_root)):
+                    outer.append(_rel(sub))
+                    continue
+                chain[sub] = ancestors
+                keep.append(d)
+            dirs[:] = keep
+            for n in names:
+                p = Path(dirpath) / n
+                # 一覧はできるが中に入れないディレクトリの中では、ファイルの種類を調べるだけで PermissionError になる
+                try:
+                    is_file = p.is_file()
+                    dangling = not is_file and p.is_symlink() and not p.exists()
+                except OSError:
+                    unreadable.append(_rel(p))
+                    continue
+                if is_file:
+                    if os.path.realpath(p) in input_files:
+                        inputs.append(_rel(p))
+                        continue
+                    try:
+                        with open(p, "rb"):
+                            pass
+                    except OSError:
+                        unreadable.append(_rel(p))
+                        continue
+                    files.append(p)
+                elif dangling:
+                    unseen.append(_rel(p))
+    if unseen:
+        sys.exit(f"エラー: {src_root} の中の次のリンクの先が読めません (コンテナから見えない場所を指すリンクか、"
+                 f"行き先の無いリンク): {', '.join(sorted(unseen))}。補足資料を提出物に入れられないので止めます。"
+                 "実体をリポジトリの中に置くか、リポジトリの中を指す相対リンクにしてください。")
+    if outer:
+        sys.exit(f"エラー: {src_root} の中の次のリンクは、入力ルートを含むディレクトリか、{SUPP_DIRNAME}/ を中に持つディレクトリ "
+                 f"(別の原稿の入力ルートなど) を指しています: {', '.join(sorted(outer))}。"
+                 "原稿などの入力が補足資料として公開されないよう止めます。補足資料に入れるものだけを指すリンクにしてください。")
+    if inputs:
+        sys.exit(f"エラー: {src_root} の中の次のファイルは、入力ルートの原稿の入力 (main.md / ref.bib / cover-letter.md / "
+                 f"revise-report.md) を指すリンクです: {', '.join(sorted(inputs))}。原稿などの入力が補足資料として公開されないよう"
+                 "止めます。補足資料に入れるものだけを置いてください。")
+    if unreadable:
+        sys.exit(f"エラー: {src_root} の中の次のディレクトリ・ファイルを読めません (アクセス権を確かめてください): "
+                 f"{', '.join(sorted(unreadable))}。補足資料が欠けた提出物にならないよう止めます。")
+    return files
+
+
+def copy_supplementary(input_root, profile, out_dir, warnings, flags=None, files=None):
     """`<INPUT_ROOT>/supplementary/` を**無変換で**複製する。
 
     BHI の規定は "published as received ... without any conversion" (査読対象・受理後は変更不可)
@@ -1220,17 +1339,16 @@ def copy_supplementary(input_root, profile, out_dir, warnings, flags=None):
       - 複製が 0 件のときに、作られてもいない複製先を名指しする行を出さない。
 
     引数 `flags` に dict を渡すと、SUBMISSION.md の表へ出す印 (表示名 → 注意文) を書き込む。
+    `files` には scan_supplementary の返り値を渡す (省略するとここで走査する)。
 
     返り値: (supplementary エントリ, video エントリ)。各エントリは (表示名, 実パス)。
     """
+    if files is None:
+        files = scan_supplementary(input_root)
     src_root = Path(input_root) / SUPP_DIRNAME
-    if not src_root.is_dir():
-        # リンクなのに読めない (コンテナから見えない場所を指す) なら止める。黙って「補足資料なし」にすると、
-        # 査読の対象で受理後は差し替えられない資料が提出物から抜ける
-        if src_root.is_symlink() or (src_root.exists() and not src_root.is_dir()):
-            sys.exit(f"エラー: {src_root} はディレクトリとして読めません (コンテナから見えない場所を指すリンクか、"
-                     "ファイル)。補足資料を提出物に入れられないので止めます。実体をリポジトリの中に置くか、"
-                     "リポジトリの中を指す相対リンクにしてください。")
+    if not files:
+        if src_root.is_dir():
+            print(f"  supplementary: {src_root}/ に複製する対象がありませんでした")
         return [], []
     dest_root = Path(out_dir) / SUPP_DIRNAME
     limits = profile.get("limits") if isinstance(profile.get("limits"), dict) else {}
@@ -1241,59 +1359,6 @@ def copy_supplementary(input_root, profile, out_dir, warnings, flags=None):
     if flags is None:
         flags = {}
 
-    # 中のディレクトリのリンクもたどって数える (rglob はたどらない)。リンクなのに中身が見えないもの (コンテナから見えない
-    # 場所を指すリンク・行き先の無いリンク) があれば止める (補足資料が黙って提出物から抜けないように)。
-    # 自分の祖先と同じ実体のディレクトリ (ループ) には入らない (_inputs_sha256 と同じ扱い)。
-    # 読めないディレクトリ・ファイルがあれば止める (アクセス権の無いものが黙って提出物から抜けないように)。
-    # supplementary/ を中に含むディレクトリ (入力ルートなど) を指すリンクもたどらずに止める (原稿やカバーレターが無変換で
-    # 公開される補足資料に入らないように)
-    files, unseen, unreadable, outer, chain = [], [], [], [], {}
-    real_root = os.path.realpath(src_root)
-
-    def _rel(path):
-        r = os.path.relpath(path, src_root)
-        return "(supplementary/ そのもの)" if r == "." else Path(r).as_posix()
-
-    def _walk_error(err):
-        unreadable.append(_rel(err.filename) if err.filename else "(supplementary/ そのもの)")
-
-    for dirpath, dirs, names in os.walk(src_root, followlinks=True, onerror=_walk_error):
-        ancestors = chain.get(dirpath, frozenset()) | {os.path.realpath(dirpath)}
-        keep = []
-        for d in dirs:
-            sub = os.path.join(dirpath, d)
-            real_sub = os.path.realpath(sub)
-            if real_sub in ancestors:
-                continue
-            if Path(real_root).is_relative_to(real_sub):
-                outer.append(_rel(sub))
-                continue
-            chain[sub] = ancestors
-            keep.append(d)
-        dirs[:] = keep
-        for n in names:
-            p = Path(dirpath) / n
-            if p.is_file():
-                try:
-                    with open(p, "rb"):
-                        pass
-                except OSError:
-                    unreadable.append(_rel(p))
-                    continue
-                files.append(p)
-            elif p.is_symlink() and not p.exists():
-                unseen.append(p.relative_to(src_root).as_posix())
-    if unseen:
-        sys.exit(f"エラー: {src_root} の中の次のリンクの先が読めません (コンテナから見えない場所を指すリンクか、"
-                 f"行き先の無いリンク): {', '.join(sorted(unseen))}。補足資料を提出物に入れられないので止めます。"
-                 "実体をリポジトリの中に置くか、リポジトリの中を指す相対リンクにしてください。")
-    if outer:
-        sys.exit(f"エラー: {src_root} の中の次のリンクは、{SUPP_DIRNAME}/ を中に含むディレクトリ (入力ルートなど) を指しています: "
-                 f"{', '.join(sorted(outer))}。原稿などの入力が補足資料として公開されないよう止めます。"
-                 "補足資料に入れるものだけを指すリンクにしてください。")
-    if unreadable:
-        sys.exit(f"エラー: {src_root} の中の次のディレクトリ・ファイルを読めません (アクセス権を確かめてください): "
-                 f"{', '.join(sorted(unreadable))}。補足資料が欠けた提出物にならないよう止めます。")
     supp, video, skipped = [], [], []
     for src in sorted(files):
         rel = src.relative_to(src_root)
@@ -1302,7 +1367,11 @@ def copy_supplementary(input_root, profile, out_dir, warnings, flags=None):
             continue
         dst = dest_root / rel
         dst.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(src, dst)                 # 無変換 (中身に手を加えない)
+        try:
+            shutil.copyfile(src, dst)             # 無変換 (中身に手を加えない)
+        except OSError as exc:
+            # 走査の後に消えた・読めなくなった (走査と複製の間に変わった)
+            sys.exit(f"エラー: 補足資料 {src} を複製できませんでした ({exc})。補足資料が欠けた提出物にならないよう止めます。")
         name = f"{SUPP_DIRNAME}/{rel.as_posix()}"
         entry = (name, dst)
         if src.suffix.lower() in VIDEO_SUFFIXES:
@@ -2034,10 +2103,8 @@ def _inputs_sha256(root, names=("ref.bib", "cover-letter.md", "revise-report.md"
                 # 除くのは生成物の残り: *.svg.png と、figs/mermaid/ 直下の .svg / .pdf のうち同じ名前の .mmd が直下にあるもの
                 # (process_figures.py の _mermaid_leftover と同じ条件)。図の前処理が描くのは figs/mermaid/ 直下の .mmd だけなので、
                 # 下位のフォルダの .mmd の隣の PDF と .mmd の無い PDF は図として変換され、数える
-                parts = rel.split("/")
                 if rel.endswith(".svg.png") or (
-                        len(parts) == 3 and parts[1] == "mermaid" and f.suffix in (".svg", ".pdf")
-                        and (root / "figs" / "mermaid" / (f.stem + ".mmd")).is_file()):
+                        f.suffix in (".svg", ".pdf") and _mermaid_generated(Path(rel).relative_to("figs"), root)):
                     continue
                 rels.append(rel)
         for rel in sorted(rels, key=lambda r: r.encode("utf-8")):
@@ -2073,15 +2140,13 @@ def _figure_outputs(input_root):
     figs = FIG_ROOT / "figs"
     if not figs.is_dir():
         return []
-    mmd_dir = Path(input_root) / "figs" / "mermaid"
 
     def recorded(p):
         if not p.is_file():
             return False
         if p.suffix.lower() != ".pdf":
             return True
-        rel = p.relative_to(figs)
-        return len(rel.parts) == 2 and rel.parts[0] == "mermaid" and (mmd_dir / (p.stem + ".mmd")).is_file()
+        return _mermaid_generated(p.relative_to(figs), input_root)
 
     rels = sorted((p.relative_to(FIG_ROOT).as_posix() for p in figs.rglob("*") if recorded(p)),
                   key=lambda r: r.encode("utf-8"))
@@ -2115,19 +2180,22 @@ def figures_source_problem(input_root):
                 "(data/step01_figures/.figures.source) がありません")
     lines = FIGURES_SOURCE.read_text(encoding="utf-8", errors="replace").splitlines()
     rec = dict(ln.split("\t", 1) for ln in lines if "\t" in ln and not ln.startswith("output\t"))
+    # 形の違う記録は、作った図の一覧が足りないことがあるので照合に使わない。同じ項目が 2 度ある記録も
+    # 壊れているとみなす (後ろの行が勝つと、違う形の記録が通りうるため)。新しい版の形の記録もここで止まるので、
+    # 文面は「古い」と決めつけない
+    keys = [ln.split("\t", 1)[0] for ln in lines if "\t" in ln and not ln.startswith("output\t")]
+    outs = [ln.split("\t", 2) for ln in lines if ln.startswith("output\t")]
+    if (len(keys) != len(set(keys)) or rec.get("format", "").strip() != FIGURES_SOURCE_FORMAT
+            or "outputs" not in rec or str(len(outs)) != rec["outputs"].strip()):
+        return ("図の前処理の出所の記録 (data/step01_figures/.figures.source) の形が違うか壊れています "
+                "(このテンプレートの版の形ではないか、作った図の一覧が欠けています)")
     rec_root = rec.get("input_root", "").strip()
     if not rec_root or Path(rec_root).resolve() != Path(input_root).resolve():
         return (f"data/step01_figures/ の図は {rec_root or '(不明)'} の原稿から作られています "
                 f"(今回の入力ルートは {input_root})")
     if rec.get("figs_sha256", "").strip() != _figs_sha256(input_root):
         return f"data/step01_figures/ の図を作った後に {input_root}/figs/ が変わっています"
-    # 作った図が記録の後に変わっていないか。形の違う記録は、作った図の一覧が足りないことがあるので
-    # 照合に使わない
-    outs = [ln.split("\t", 2) for ln in lines if ln.startswith("output\t")]
-    if (rec.get("format", "").strip() != FIGURES_SOURCE_FORMAT
-            or "outputs" not in rec or str(len(outs)) != rec["outputs"].strip()):
-        return ("図の前処理の出所の記録 (data/step01_figures/.figures.source) が古い形か壊れています "
-                "(このテンプレートの版の形ではないか、作った図の一覧が欠けています)")
+    # 作った図が記録の後に変わっていないか
     for _tag, sha, rel in outs:
         f = FIG_ROOT / rel
         if not f.is_file() or _file_sha256(f) != sha:
@@ -2165,6 +2233,58 @@ def cmd_figures_source(args):
     if problem:
         print(problem, file=sys.stderr)
         sys.exit(1)
+
+
+# ---- 同梱のサンプル論文 (src/) の消し忘れ ----
+# clone した直後の src/ には BHI の体裁のサンプル論文 (架空) がある。自分の main.md に書き換えてもサンプルの
+# カバーレター・補足資料・文献・図が残っていると、それが自分の論文の提出物に入る (補足資料は無変換で公開され、
+# 受理後は差し替えられない)。一覧はサンプルの各ファイルの SHA-256 (scripts/remove-sample.sh と共用)
+SAMPLE_LIST = Path("scripts/lib/sample-files.sha256")
+
+
+def sample_leftovers(input_root):
+    """(main.md がサンプルそのものか, 中身がサンプルと同じまま残っている main.md 以外のファイル) を返す。
+
+    中身 (SHA-256) で比べるので、書き換えたファイルや同じ名前の自分のファイルは数えない。一覧に同じパスの行が 2 つ以上あれば
+    (公開した版ごとのサンプル)、どれかと一致すればサンプルとみなす。一覧が無ければ (False, [])。
+    """
+    if not SAMPLE_LIST.is_file():
+        return False, []
+    entries = []
+    for ln in SAMPLE_LIST.read_text(encoding="utf-8", errors="replace").splitlines():
+        cols = ln.split()
+        if len(cols) == 2 and re.fullmatch(r"[0-9a-f]{64}", cols[0]):
+            entries.append((cols[1].lstrip("*"), cols[0]))
+    root = Path(input_root)
+
+    def same(rel, sha):
+        f = root / rel
+        return f.is_file() and _file_sha256(f) == sha
+
+    is_sample = any(rel == "main.md" and same(rel, sha) for rel, sha in entries)
+    left = list(dict.fromkeys(rel for rel, sha in entries if rel != "main.md" and same(rel, sha)))
+    return is_sample, left
+
+
+def _sample_check(input_root, mode):
+    """サンプルの消し忘れを確かめる。最終モードで消し忘れがあれば止め、それ以外は注意の文のリストを返す。"""
+    is_sample, left = sample_leftovers(input_root)
+    if Path(input_root).resolve() == Path("src").resolve():
+        cmd = "bash scripts/remove-sample.sh"
+    else:
+        cmd = f"bash scripts/remove-sample.sh --input {input_root}"
+    if is_sample:
+        return [f"入力ルート {input_root} の原稿は、同梱のサンプル論文 (架空の論文) そのものです。自分の論文を組むときは、"
+                f"先に '{cmd}' でサンプルのファイルを消してください"]
+    if not left:
+        return []
+    msg = (f"入力ルート {input_root} の main.md は同梱のサンプル論文ではないのに、サンプル論文のファイルが中身もそのまま"
+           f"残っています: {', '.join(left)}。このまま組むと、サンプルのカバーレター・補足資料・文献・図が自分の論文の"
+           f"提出物に入ります (補足資料は無変換で公開され、受理後は差し替えられません)。'{cmd}' でサンプルのファイルを"
+           "消してから (中身がサンプルと同じファイルだけを消し、書き換えたファイルは残します)、build からやり直してください")
+    if mode == "final":
+        sys.exit(f"エラー: {msg}。")
+    return [msg]
 
 
 def _check_build_provenance(args, profile, mode, input_root):
@@ -2274,14 +2394,41 @@ def cmd_assemble(args):
     cur_sha = _check_build_provenance(args, profile, mode, input_root)
     if mode == "final" and not args.keep_figures:
         _require_figures_source(args, input_root)   # 提出物の図 (step01) の出所
+    # 入力の不備で止まる確かめのうち、組み立てる前にできるもの (表の置き方の綴り・補足資料の走査) もここで済ませる
+    # (止まったときに、すでにあるパッケージに触れずに終わるため)
+    relocate_mod.table_placement(profile)
+    supp_files = scan_supplementary(input_root)
+    pre_warnings = _sample_check(input_root, mode)
 
     # 提出パッケージは生成物なので毎回作り直す (data/output/<journal>/ 全体を再生成)。
     # flat な data/output/*.docx (roundtrip 集約) は別物なので触らない。
+    # すでにあるパッケージは隠し名へ退避し、組み立てが最後まで通ったら消す。組み立てながらでないと分からない不備
+    # (図の書き出し・表の書き出しなど) で途中で止まったら、作りかけを消して退避したパッケージを戻す
+    backup = None
     if out_dir.exists():
         print(f"  注意: 既存の {out_dir}/ を再生成します (手置きファイルがあれば事前に退避してください)")
-        shutil.rmtree(out_dir)
+        backup = out_dir.with_name(f".{out_dir.name}.previous.{os.urandom(4).hex()}")
+        os.replace(out_dir, backup)
     out_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        rc = _assemble_package(args, input_root, out_dir, profile, mode, fmt, export, fallback,
+                               export_warning, dpi, pptx_cfg, cur_sha, supp_files, pre_warnings)
+    except BaseException:
+        shutil.rmtree(out_dir, ignore_errors=True)
+        if backup is not None:
+            os.replace(backup, out_dir)
+            print(f"  注意: 途中で止まったので、作りかけのパッケージを消して、元の {out_dir}/ を戻しました。", file=sys.stderr)
+        else:
+            print(f"  注意: 途中で止まったので、作りかけの {out_dir}/ を消しました。", file=sys.stderr)
+        raise
+    if backup is not None:
+        shutil.rmtree(backup, ignore_errors=True)
+    return rc
 
+
+def _assemble_package(args, input_root, out_dir, profile, mode, fmt, export, fallback, export_warning, dpi,
+                      pptx_cfg, cur_sha, supp_files, pre_warnings):
+    """cmd_assemble の本体。空の out_dir に提出一式を組み立てる (止まるときの後始末は cmd_assemble が行う)。"""
     print(f"== Step 05 投稿パッケージ組立 ==")
     print(f"  INPUT_ROOT = {input_root}")
     print(f"  JOURNAL    = {args.journal}  ({profile.get('name', '(名称未設定)')})")
@@ -2314,6 +2461,7 @@ def cmd_assemble(args):
     # 受入形式外の警告は末尾の「図変換の注意」にも残す (冒頭表示だけだと流れる)
     fig_warnings = [export_warning] if export_warning else []
     struct_warnings = []                 # 提出構成の組み替え・表 lint の注意
+    struct_warnings.extend(pre_warnings)  # サンプル論文の注意 (組み立てる前に確かめたもの)
     # 組み替えの結果 (SUBMISSION.md が読む)。草稿 / --keep-figures では何もしないので 0 のまま。
     r = {"stripped": 0, "figures": 0, "tables": 0, "legends_section": None, "tables_files": []}
     # 実行が実際に何をしたかを SUBMISSION.md へ渡す。
@@ -2396,11 +2544,13 @@ def cmd_assemble(args):
         # (画面の 1 行だけだと、SUBMISSION.md を投稿前の確認の一覧として読む人が見落とす)。
         diff_notes = []
         rec = DIFF_DIR / ".main_diff.source"
-        rec_lines = rec.read_text(encoding="utf-8").splitlines() if rec.is_file() else []
+        rec_lines = rec.read_text(encoding="utf-8", errors="replace").splitlines() if rec.is_file() else []
         d_journal = rec_lines[0].strip() if rec_lines else ""
         d_new = rec_lines[1].strip() if len(rec_lines) > 1 else ""
         d_sha = rec_lines[2].strip() if len(rec_lines) > 2 else ""
         d_type = rec_lines[3].strip() if len(rec_lines) > 3 else ""
+        # 5 行目は入力ルートの原稿のほかの入力のハッシュ (build の出所の記録の inputs_sha256 と同じ数え方)
+        d_inputs = rec_lines[4].strip() if len(rec_lines) > 4 else ""
         cur_md = Path(input_root) / "main.md"
         same_md = bool(d_new) and Path(d_new).resolve() == cur_md.resolve()
         if d_sha:
@@ -2418,6 +2568,14 @@ def cmd_assemble(args):
                 diff_notes.append(f"新版が {d_new} である (今回の原稿は {input_root}/main.md)")
             if d_type and args.article_type and d_type != args.article_type:
                 diff_notes.append(f"記事種別 {d_type} で作られている (今回は {args.article_type})")
+            # 差分を作った後に文献や図を直したかを、原稿のほかの入力のハッシュで比べる (main.md だけを比べると、古い文献・
+            # 古い図の差分 docx が注意なしで提出物に入るため)。ハッシュの行が無い記録は照合に使えないので作り直しを促す
+            if not re.fullmatch(r"[0-9a-f]{64}", d_inputs):
+                diff_notes.append("差分の記録 (data/step03_diff/.main_diff.source) に図・文献などの入力のハッシュが無い "
+                                  "(記録の形が違うか壊れている)")
+            elif d_inputs != _inputs_sha256(input_root):
+                diff_notes.append(f"差分を作った後に {input_root} の ref.bib / cover-letter.md / revise-report.md / figs/ "
+                                  "のどれかが変わっている")
         else:
             diff_notes.append("どの原稿から作ったかの記録が無い")
         if diff_notes:
@@ -2448,7 +2606,7 @@ def cmd_assemble(args):
 
     # --- supplementary / video の無変換パススルー ---
     supp_entries, video_entries = copy_supplementary(
-        input_root, profile, out_dir, struct_warnings, flags=manifest_flags)
+        input_root, profile, out_dir, struct_warnings, flags=manifest_flags, files=supp_files)
     for label, entries in (("supplementary (無変換)", supp_entries),
                            ("supplementary (動画)", video_entries)):
         for name, path in entries:
@@ -2500,6 +2658,24 @@ def cmd_assemble(args):
         # 番号を取らないテキストボックスの図は理由にしない
         n_untitled = len(fig_written) - len(fig_numbers)
         numbered = [n for n in fig_numbers if n is not None]
+        # 題の無い図が本文の末尾にまとまっていれば (relocate.py と同じ判定)、それより前の図ファイルの番号はずらさない。
+        # そのときは食い違いの原因に数えず、末尾に題の無い図ファイルが並ぶことを添えるだけにする (relocate の
+        # 「題の無い画像による番号のずれは起きません」と食い違う文を並べず、要らない直しを案内しないため)
+        untitled_tail = None            # 末尾にまとまっていれば、その最初の図ファイルの番号
+        if n_untitled > 0:
+            from lxml import etree
+            with zipfile.ZipFile(manuscript_out) as z:
+                mbody = etree.fromstring(z.read("word/document.xml")).find(W("body"))
+            seq = relocate_mod.body_placeholders(mbody, relocated=True)
+            titled_flags = [titled for _, titled in seq]
+            n_tail = len(titled_flags) - len("".join("1" if t else "0" for t in titled_flags).rstrip("0"))
+            if n_tail == n_untitled == titled_flags.count(False):
+                untitled_tail = seq[-n_tail][0]
+        tail_note = None
+        if untitled_tail is not None:
+            tail_note = (f"題 (キャプション) の無い図 {n_untitled} 枚は本文の末尾 (Figure{untitled_tail} 以降) に"
+                         "まとまっているので番号をずらさないが、題の無い図ファイルとして並ぶ "
+                         "(図なら題と {#fig:x} を付け、飾りの画像なら本文から外す)")
         # 原因はすべて集める。原因が 1 つだけのときに限り、その直し方で「一致する」と案内する。2 つ以上なら原因を
         # すべて挙げ、すべてを直せば一致すると案内する (一部だけを直しても食い違いは残るため)。
         # 各組は (原因の文, 原因が 1 つだけのときの文と案内, 2 つ以上のときの直し方)。直し方の無い組は対応が取れないとき
@@ -2508,7 +2684,7 @@ def cmd_assemble(args):
             causes.append(("番号の無い図 (相互参照のラベル {#fig:x} の無い図) がある",
                            ("番号の無い図 (相互参照のラベル {#fig:x} の無い図) があるため", "ラベルを付ければ一致する"),
                            "番号の無い図にラベルを付ける"))
-        if n_untitled > 0:
+        if n_untitled > 0 and untitled_tail is None:
             causes.append((f"題 (キャプション) の無い図 {n_untitled} 枚も図ファイルとして書き出され、本文では番号が振られない",
                            (f"題 (キャプション) の無い図 {n_untitled} 枚も図ファイルとして書き出され、"
                             "本文では番号が振られないため",
@@ -2531,6 +2707,13 @@ def cmd_assemble(args):
         elif n_skipped > 0:
             figure_numbers_reason = (f"本文の図のうち {n_skipped} 枚を図ファイルに書き出せなかったため (上の注意を見る)",
                                      "原稿と同じ入力ルートで build から回し直す")
+        elif not causes and untitled_tail is not None:
+            matched = (f"Figure{untitled_tail - 1} までの図ファイルの番号は本文の図番号と一致する"
+                       if untitled_tail > 1 else "本文で番号の振られた図は無い")
+            figure_numbers_reason = (f"題 (キャプション) の無い図 {n_untitled} 枚 (Figure{untitled_tail} 以降) も"
+                                     "図ファイルとして書き出され、本文では番号が振られないため",
+                                     f"題の無い図は本文の末尾にまとまっているので、{matched} (題の無い図による番号のずれは"
+                                     "起きない)。図なら題と {#fig:x} を付け、飾りの画像なら本文から外す")
         elif len(causes) == 1:
             figure_numbers_reason = causes[0][1]
         elif causes:
@@ -2545,6 +2728,8 @@ def cmd_assemble(args):
         else:
             figure_numbers_reason = ("図ファイルと本文の図番号の対応が取れないため",
                                      "CAPTIONS.md の図番号と図ファイルの対応を確かめる")
+        if causes and tail_note and figure_numbers_reason is not None and n_skipped <= 0:
+            figure_numbers_reason = (figure_numbers_reason[0], f"{figure_numbers_reason[1]}。{tail_note}")
         if not figure_numbers_match:
             struct_warnings.append(
                 f"★要注意: {figure_numbers_reason[0]}、図ファイルの番号 (FigureN) が"

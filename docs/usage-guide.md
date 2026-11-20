@@ -16,7 +16,7 @@ clone してから投稿パッケージを作るまでの手順をまとめる�
 | `.development` | 入力ルート | 用途 |
 |---------------|-----------|------|
 | 有り (`echo dev > .development`) | `data/dummy/` | 同梱のサンプル原稿で動作を確かめる |
-| 無し (`rm .development`) | `src/` | 自分の原稿 (clone した直後は BHI の Original Article の体裁のサンプル論文が入っている) |
+| 無し (`rm -f .development`) | `src/` | 自分の原稿 (clone した直後は BHI の Original Article の体裁のサンプル論文が入っている) |
 
 環境変数 `INPUT_ROOT=...` か `--input <dir>` でも上書きできる (優先順は 環境変数 > `--input` > `.development`)。
 
@@ -54,8 +54,16 @@ clone した直後の `src/` には、BHI の Original Article の体裁のサ�
 
 ```bash
 rm -f .development             # 入力ルートを src に
-rm -rf src/main.md src/ref.bib src/cover-letter.md src/supplementary src/figs/*.svg   # src/ のサンプルを消す
+rm -f data/step03_diff/*.docx data/step03_diff/.main_diff.source   # README のクイックスタートで作った汎用サンプルの差分を片づける
+bash scripts/remove-sample.sh  # src/ のサンプルを消す (中身がサンプルのままのファイルだけ。--dry-run で一覧だけ)
 ```
+
+`scripts/remove-sample.sh` は、サンプルの各ファイルの中身 (SHA-256) を照らして**サンプルのまま変わっていないファイルだけ**を消す。
+自分で書き換えたファイルや、同じ名前の自分のファイルは残して「残した」と出すので、何度打っても自分のファイルは消えない。
+**自分の `main.md` の隣にサンプルのファイル (カバーレター・補足資料・文献・図) が残っていると、最終モードの package は止まる**
+(サンプルのカバーレターと補足資料が提出物に入らないように。サンプルそのものを組むときは止まらない)。
+すでに `src/` に自分の原稿を置いていて 0.1.0 か 0.1.1 から更新すると、自分のファイルの隣にサンプルのファイルが足される
+(自分の `src/main.md` と `src/ref.bib` を commit していれば衝突する)。自分の版を残して `bash scripts/remove-sample.sh` を回す。
 
 **投稿先が BHI と決まっているなら、原稿骨格から始める** (§8.1)。骨格は必須節
 (Title page / Abbreviations / Declarations 6 項目) を記入式で持つので、書き漏らしが起きない。
@@ -181,6 +189,8 @@ $EDITOR src/figs/mermaid/flow.mmd          # .mmd が一次ソース
 (`bash docker/mermaid/convert.sh jank/flow.mmd both`。同じ名前の出力が既にあると止まるので、描き直すときは `--force`)。
 `figs/mermaid/` の中で単独に描いた `.svg` / `.pdf` が残っていても、前処理は同じ名前の `.mmd` から作り直した図を使い、
 残骸を読み飛ばして「単独描画の残骸を無視しました」と警告する (残骸は消してよい)。
+**`.mmd` は `figs/mermaid/` の直下に置く** (下位のフォルダの `.mmd` は描かれず、図の前処理が警告を出す)。`figs/mermaid/` に置いた
+手書きの図や `.mmd` の無い PDF は、ほかの図と同じく扱われる。
 
 - **ラベルは SVG の文字 (`<text>`) で出す**。HTML のラベル (`foreignObject`) は Word と PNG フォールバックで消える
   (ブラウザでは正常に見える) ため、`docker/mermaid/config.json` の最上位に `"htmlLabels": false` を置いてある。
@@ -214,7 +224,8 @@ bash scripts/diff.sh HEAD~1
 # 任意の revision との差分 (初回投稿時のタグなど)
 bash scripts/diff.sh v1-submitted
 
-# 明示した 2 ファイルの差分 (どちらも実在するファイル)
+# 明示した 2 ファイルの差分 (どちらもリポジトリの中のファイルを、リポジトリのルートからの相対パスで指す。
+# リポジトリの外や絶対パスは、変換を行うコンテナから見えないので止まる)
 bash scripts/diff.sh old.md src/main.md
 #  → data/step03_diff/main_diff.docx
 ```
@@ -438,8 +449,10 @@ References の後」という誌の要求は、提出物を作るときに満た
   リポジトリの中を指す相対リンクだけで、絶対パスのリンクやリポジトリの外を指すリンクは build も読めないので数えない。
   `figs/` の中のディレクトリのリンクには図を置かない — 図の前処理がたどらない) と、build が書いた `main.docx` そのもの。
   build の最中に原稿や図が変わると、build は記録を書かずに止まるので、もう一度 build する。docx に埋め込んだ図が図の前処理の記録と
-  食い違ったとき (止めた build のコンテナが記録の後に図を書いたときなど) も、build は記録を書かずに止まる。diff も、差分の最中に原稿が
-  変わると差分の記録を書かずに止まる。
+  食い違ったとき (止めた build のコンテナが記録の後に図を書いたときなど) も、build は記録を書かずに止まる。diff も、差分の最中に原稿・
+  文献・図が変わったとき、差分に使った図が図の前処理の記録と食い違ったとき (止めた build のコンテナが記録の後に図を書いたときなど) は、
+  作った差分 docx を消し、差分の記録を書かずに止まる。差分を作った後に文献や図を直して build し直すと、package が `SUBMISSION.md` に
+  差分の注意を出すので、diff を回し直す。
   最終モードの提出物の図は図の前処理の結果 (`data/step01_figures/`) から作るので、その出所も照合する — 図の前処理
   (`main/step01_figures/figures.sh`。build と diff が回す) が入力ルートと `figs/` のハッシュと、作った図の各ファイルのハッシュ
   (PDF は `figs/mermaid/` の `.mmd` から作った Mermaid の PDF だけ。ほかの PDF は package が作り直す) を
@@ -452,8 +465,11 @@ References の後」という誌の要求は、提出物を作るときに満た
   ホストからは見えるのに変換を行うコンテナからは見えない入力 (途中にリポジトリの中を指す絶対パスのリンクを挟む形・絶対パスの入力ルート)
   でも止まる。Docker (Docker Desktop) が動いていない・イメージが無いなど、コンテナを起動できないときは、そのことを言って止まる。
   `supplementary/` がディレクトリとして読めない (外を指すリンクなど) とき、中のリンクの先が読めないとき、中に読めない (アクセス権の無い)
-  フォルダやファイルがあるとき、`supplementary/` を中に含むフォルダ (入力ルートなど) を指すリンクがあるときは package が止まる
-  (中のディレクトリのリンクはたどって数える)。
+  フォルダやファイルがあるときは package が止まる (中のディレクトリのリンクはたどって数える)。原稿が補足資料として公開されないよう、
+  入力ルートやその祖先を指すリンク、たどった先に `supplementary` という名前の項目があるフォルダ (別の原稿の入力ルートなど) を指すリンク、
+  `supplementary/` そのものがこれらを指すリンク、`main.md` / `ref.bib` / `cover-letter.md` / `revise-report.md` を指すファイルのリンクでも止まる
+  (入力ルートの中の `figs/` などや、外の補足資料用のフォルダを指すリンクは通る)。止まったときも、前に作ったパッケージ (`data/output/<id>/`) は
+  そのまま残る (組み立ての途中で止まると、作りかけを消して前のものを戻す)。
   直すには `build.sh` を同じ `--input` で回し直すか、`package.sh … --build` を使う。同じ作業ツリーで build・diff・package の
   どれかを回している間に別のものを回すと、後から始めた方が「別の build / diff / package が実行中です」で止まる
   (どれも `data/step01_figures/` と `data/step02_build/` を使うため。`flock` の無い環境では止まらないので、同時に回さない)。
@@ -556,9 +572,10 @@ bash scripts/roundtrip.sh --no-package    # 提出パッケージ (data/output/<
   正常終了する。ただし集約 (`data/output/*.docx` を消して集め直す) は実際に行う。
 - **`SUBMISSION.md` を持つ提出パッケージ (`data/output/<id>/`) があると、既定でそれも扱う** — 本文と表を PDF 化に回し、PDF が
   そろったら Drive の `submission-<id>/` に置く (§8.4)。その前に、パッケージが今の原稿から作られたかを照合し、違えば何も送らずに
-  止まる。**README のクイックスタートの直後**は BHI の動作例 (`data/dummy/bhi`) のパッケージが残っているので、`--dry-run` も
-  ここで止まる。パッケージを使わないなら `--no-package`、動作例のパッケージを見るなら `INPUT_ROOT=data/dummy/bhi` と `--skip-build` を付ける
-  (`--skip-build` が無いと Phase 1 が既定の誌で build し直し、パッケージより新しいビルドができて止まる)。
+  止まる。**README のクイックスタートの直後**は、手順 6 で `src/` のサンプルから作った BHI のパッケージが残っているので、
+  `--skip-build` を付ける (無いと Phase 1 が既定の誌で build し直し、パッケージより新しいビルドができて止まる)。パッケージを使わないなら
+  `--no-package`。`--input data/dummy/bhi` で作った動作例のパッケージなら、さらに `INPUT_ROOT=data/dummy/bhi` を付ける (入力ルートが
+  パッケージと違うと止まる)。
 - **送出先に同じ名前の docx が残っていれば push しない** (前回の分がまだ変換待ち・変換中。上書きすると、変換されないまま
   `processed/` に入りうる)。**push より前に書かれた PDF は今回の成果として取り込まない** (時計のずれを 120 秒まで許す)。
   どちらも `docs/roundtrip-windows-watcher.md` §5・§7。
@@ -599,14 +616,14 @@ bash scripts/roundtrip.sh --no-package    # 提出パッケージ (data/output/<
 ### 8.1 執筆を始める
 
 ```bash
-rm -rf src/main.md src/ref.bib src/cover-letter.md src/supplementary src/figs/*.svg   # clone した直後に入っているサンプルを消す
+bash scripts/remove-sample.sh   # clone した直後に入っているサンプルを消す (§1 で消していれば何もしない)
 cp data/journals/bhi/skeleton/main.md         src/main.md
 cp data/journals/bhi/skeleton/cover-letter.md src/cover-letter.md
 rm -f .development
 ```
 
 サンプルを消さずに骨格の `main.md` だけを上書きすると、サンプルの文献・図・補足資料 (`src/supplementary/` は提出物に無変換で
-複製される) が残る。骨格は必須節を記入式で持ち、記入欄は `<<...>>` で書いてある。**埋め忘れは §8.3 の規定チェックが `main.md` /
+複製される) が残り、最終モードの package はそれを示して止まる (§1)。骨格は必須節を記入式で持ち、記入欄は `<<...>>` で書いてある。**埋め忘れは §8.3 の規定チェックが `main.md` /
 `cover-letter.md` の両方について件数と行番号つきで指摘する**。Declarations 6 項目の文例は
 `data/journals/bhi/skeleton/declarations.md` (参照用)。記入済みの動作例は `data/dummy/bhi/` で、`--input data/dummy/bhi` を
 付ければそのままビルドできる。

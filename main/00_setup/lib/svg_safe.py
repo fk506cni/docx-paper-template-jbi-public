@@ -41,6 +41,10 @@ CSS を適用しない描画系では、塗りの指定が無い四角形が SVG
      `<use>` などで再利用される要素 (自身か祖先の id が `<use>` から参照される) の `rgba()` / `hsl()` は、自身に不透明度が無ければ
      止める (受け継ぐ不透明度が使われる場所ごとに違い、1 つの値に書き換えられないため)。子が色と不透明度の片方だけを持つかの検査では、
      子の `<use>` (と自身が `<use>` なら自身) が参照する要素とその子孫も子として見る。
+     `<use>` などが `href` と `xlink:href` を両方持つときは、両方の参照先を再利用される要素として扱う
+     (SVG 2 の描画系は `href` を、SVG 1.1 の描画系は `xlink:href` を使うので、どちらで描かれても判定が外れないように)。
+     参照される id は、`href` (名前空間によらず局所名が href の属性) の `#` より後ろすべてと、`url()` の括弧の中 (引用符の有無によらない) の
+     `#` より後ろを、同じ規則で取り出す。`:` や `=` を含む id も 1 つの id として扱い、百分率の符号化と CSS の逃がしを戻した形も入れる。
      どれも CSS を読む描画系では同じ見た目で、描画系によっては (例: Aspose.Slides の評価版) `rgba()` / `hsl()` と
      `grey` 系の色名を黒で塗り、値が 1 つの点線を実線で描き、0 を含む点線があると図全体を描かず、
      `fill-opacity` と並ぶ `opacity` を無視するため。
@@ -56,6 +60,8 @@ CSS を適用しない描画系では、塗りの指定が無い四角形が SVG
   CSS の変数 (`--名前`) は、定義を集めて `var()` を値に置き換える (規則の宣言と、要素自身の `style` の両方)。
   定義だけの規則 (Mermaid の `:root`) はその後で捨てる。定義が無ければ `var()` の代わりの値を使う
   (Mermaid のシーケンス図・状態遷移図・クラス図・gitGraph の CSS がこれらを使う)。
+  `<style>` の無い SVG でも、ルートの `style` の定義で要素の `style` の `var()` を置き換える。
+  CSS として読むのは SVG と XHTML の名前空間の `<style>` だけで、ほかの名前空間の `<style>` は描画系が読まないので触らない。
   定義を受け付けるのは、ルートに当たるセレクタ (`:root` / `svg:root` / `*:root` / `svg` / `#ルートの ID` / `svg#ルートの ID`。
   型セレクタは小文字の `svg` だけ) の規則とルート要素の `style` だけで、
   変数の名前は大文字と小文字を区別する (定義した場所によって効く範囲が変わる形を、全体で 1 つの値として扱わないため)。
@@ -65,7 +71,9 @@ CSS を適用しない描画系では、塗りの指定が無い四角形が SVG
   宣言は、引用符と括弧の中の `;` では切らない (`url("data:…;…")` を壊さないため)。
 それ以外 (`+` `~` の結合子・`:hover` などの擬似クラス・`@media` などの @ 規則・一括指定の `font`・
 `media` 属性つきの `<style>`・内部 DTD の実体参照・定義も代わりの値も無い変数・同じ名前に違う値のある変数・
-ルートに当たらない規則 (大文字の `SVG`・`.a :root` など) や、ルート以外の要素の `style` での変数の定義・表示属性の `var()`・
+置き換えると値が空になる変数 (`var(--a,)` の空の代わりの値や空の定義)・
+ルートに当たらない規則 (大文字の `SVG`・`.a :root` など) や、ルート以外の要素の `style` での変数の定義・
+表示属性 (SVG 1.1 と SVG 2 の表示属性すべて。`fill`・`d`・`transform`・`transform-origin`・`mask-type` など) の `var()`・
 `<use>` などで再利用される要素の、受け継ぐ不透明度と掛け合わせる `rgba()` / `hsl()`・
 `foreignObject` の中の (SVG でない) 要素に当たる規則 (Mermaid の journey 図)・外部の CSS を読む `<?xml-stylesheet?>`)
 を見つけたら **ValueError で止める** (黙って一部だけ書き込むと、見た目が変わったことに気づけないため)。
@@ -80,10 +88,12 @@ CSS を適用しない描画系では、塗りの指定が無い四角形が SVG
 import colorsys
 import re
 import sys
+from urllib.parse import unquote
 
 from lxml import etree
 
 SVG_NS = "http://www.w3.org/2000/svg"
+XHTML_NS = "http://www.w3.org/1999/xhtml"
 XML_SPACE = "{http://www.w3.org/XML/1998/namespace}space"
 
 # 複合セレクタの部品: 要素名か *、続いて .クラス / #ID / [属性] / [属性 演算子 "値" (i)] の並び
@@ -123,11 +133,17 @@ _FOLD_OPACITY_SHAPES = {"rect", "circle", "ellipse", "polygon", "polyline", "pat
 # href で参照した要素を、自身から性質を受け継ぐ形で描く要素 (参照された要素は使われる場所ごとに受け継ぐ値が違う)
 _INSTANCING = {"use", "feImage", "pattern"}
 # var() を探す表示属性 (CSS の性質と同じ名前の属性)
+# SVG 1.1 と SVG 2 の表示属性をすべて入れる。名簿に無い表示属性の var() は、検査を通るのに <style> (変数の定義) を外されて
+# 値が無効になり、黙って見た目が変わるため
 _PRESENTATION = _INHERITED | {
     "opacity", "stop-color", "stop-opacity", "flood-color", "flood-opacity", "lighting-color", "filter", "clip-path",
     "mask", "display", "overflow", "clip", "alignment-baseline", "baseline-shift", "text-decoration", "unicode-bidi",
     "color-interpolation-filters", "vector-effect", "paint-order", "transform",
-    "x", "y", "width", "height", "cx", "cy", "r", "rx", "ry"}
+    "x", "y", "width", "height", "cx", "cy", "r", "rx", "ry",
+    "d", "patternTransform", "gradientTransform", "transform-origin", "mask-type", "font", "font-size-adjust",
+    "text-overflow", "glyph-orientation-horizontal", "color-profile", "enable-background"}
+# CSS として読む <style> の名前空間 (ほかの名前空間の <style> は描画系が CSS として読まないので触らない)
+_STYLE_NS = (None, SVG_NS, XHTML_NS)
 
 
 def _local(tag):
@@ -377,6 +393,16 @@ def _resolve_vars(value, variables, dead=frozenset(), depth=0):
     return _resolve_vars(_VAR.sub(repl, value), variables, dead, depth + 1)
 
 
+def _substitute(value, variables, dead=frozenset()):
+    """宣言の値の var() を置き換える。置き換えた値が空になれば ValueError (`var(--a,)` の空の代わりの値や、空の定義)。
+    CSS では空になった宣言は計算の時点で無効になり、性質は親から受け継ぐか初期値になるが、書き出した空の宣言は
+    読み込みの時点で捨てられて表示属性が効き、見た目が変わるため。"""
+    new = _resolve_vars(value, variables, dead)
+    if new != value and not new.strip():
+        raise ValueError(f"CSS の変数を置き換えると空になる宣言には対応していません: {value[:60]!r}")
+    return new
+
+
 def _parse_css(css, order_start, report, variables, dead=frozenset()):
     """CSS 文字列 → [(selector, specificity, order, decls, unresolved)]。decls は {prop: ([value, …], important)}。
 
@@ -404,7 +430,7 @@ def _parse_css(css, order_start, report, variables, dead=frozenset()):
         unresolved = []
         for k, (vals, imp) in list(decls.items()):
             try:
-                new = [_resolve_vars(v, variables, dead) for v in vals]
+                new = [_substitute(v, variables, dead) for v in vals]
             except _UnresolvedVariable as e:
                 unresolved.append(f"{e} ({prelude[:60]!r} の {k})")
                 del decls[k]
@@ -494,14 +520,53 @@ def _inherited_value(el, prop):
     return None
 
 
-def _href_id(el):
-    """要素の href (`href` / `xlink:href`) が指す id。文書内の `#id` でなければ None。"""
-    for k, v in el.attrib.items():
-        if k == "href" or k.endswith("}href"):
-            m = re.match(r"\s*#([^\s]+)\s*$", v)
-            if m:
-                return m.group(1)
-    return None
+def _css_unescape(text):
+    """CSS の逃がし (`\\:` や `\\3a `) を戻す (url() の中の id を、描画系と同じ文字列で比べるため)。"""
+    return re.sub(r"\\([0-9a-fA-F]{1,6})[ \t\n]?|\\(.)",
+                  lambda m: chr(int(m.group(1), 16)) if m.group(1) else m.group(2), text)
+
+
+def _fragment_ids(url, internal_only=True, css=False):
+    """URL の `#` より後ろすべてを id として返す (集合)。百分率の符号化 (`#r%3A1`) を戻した形も入れる
+    (描画系は戻した形で id を探すため)。internal_only なら文書内の参照 (`#` で始まるもの) だけ。css なら CSS の逃がしも戻す。
+    href と url() の id をこの 1 つの規則で取り出し、`:` や `=` を含む id を参照する側と参照される側で食い違わずに扱う。"""
+    url = url.strip()
+    if css:
+        url = _css_unescape(url)
+    head, sep, frag = url.partition("#")
+    if not sep or not frag or (internal_only and head):
+        return set()
+    return {frag, unquote(frag)}
+
+
+# url(…) の中身 (引用符つき・なし。引用符なしの中では CSS の逃がしとその後ろの空白 1 つも中身に含める)
+_URL_FN = re.compile(r"""url\(\s*(?:"([^"]*)"|'([^']*)'|((?:\\[0-9a-fA-F]{1,6}[ \t\n]?|\\.|[^"'()\s\\])*))\s*\)""",
+                     re.I)
+
+
+def _href_values(el):
+    """要素の href の値 (名前空間によらず、局所名が href の属性すべて。`href` と `xlink:href` が両方あれば両方)。"""
+    return [v for k, v in el.attrib.items() if _local(k) == "href"]
+
+
+def _href_ids(el):
+    """要素の href が文書内で指す id の集合。`href` と `xlink:href` が両方あれば両方の参照先を入れる
+    (SVG 2 の描画系は `href` を、SVG 1.1 の描画系は `xlink:href` を使う。どちらで描かれても判定が外れないように)。"""
+    out = set()
+    for v in _href_values(el):
+        out |= _fragment_ids(v)
+    return out
+
+
+def _referenced_ids(el):
+    """要素が href か url() で参照する id の集合 (文書の外の URL の `#` より後ろも入れる。参照されうる要素を広く拾う側)。"""
+    out = set()
+    for v in _href_values(el):
+        out |= _fragment_ids(v, internal_only=False)
+    for v in el.attrib.values():
+        for m in _URL_FN.finditer(v):
+            out |= _fragment_ids(next(g for g in m.groups() if g is not None), internal_only=False, css=True)
+    return out
 
 
 def _reused(el, ids):
@@ -522,9 +587,10 @@ def _render_descendants(el, idmap):
             if d is not el:
                 out.append(d)
             if _local(d.tag) in _INSTANCING:
-                target = idmap.get(_href_id(d))
-                if target is not None and path(target) not in seen:
-                    todo.append(target)
+                for ident in _href_ids(d):
+                    target = idmap.get(ident)
+                    if target is not None and path(target) not in seen:
+                        todo.append(target)
     return out
 
 
@@ -730,7 +796,8 @@ def make_self_contained(svg_bytes):
     for pi in root.itersiblings(preceding=True):
         if isinstance(pi, etree._ProcessingInstruction) and pi.target == "xml-stylesheet":
             raise ValueError("外部の CSS を読む <?xml-stylesheet?> には対応していません (pptx には付いていかないため)")
-    styles = [el for el in root.iter() if _local(el.tag) == "style"]
+    styles = [el for el in root.iter()
+              if _local(el.tag) == "style" and etree.QName(el).namespace in _STYLE_NS]
     report = {"style_blocks": len(styles), "rules": 0, "elements_changed": 0,
               "declarations_written": 0, "text_fill_added": 0, "xml_space_added": 0,
               "skipped_keyframes": 0, "skipped_empty_rules": 0, "attributes_removed": 0,
@@ -772,17 +839,17 @@ def make_self_contained(svg_bytes):
     # 優先順位の低い順 (詳細度 → 記述順) に並べ、後勝ちで重ねる
     rules.sort(key=lambda r: (r[1], r[2]))
 
-    if styles:
-        # <style> を外すと、要素自身の style の var() が定義 (:root の変数) を失うので、ここで値に置き換える
-        # (定義も代わりの値も無ければ止める)
-        for el in root.iter():
-            if isinstance(el.tag, str) and "var(" in (el.get("style") or "").lower():
-                own, own_imp = _parse_style(el.get("style"))
-                own = {k: [_resolve_vars(v, variables, dead) for v in vals] for k, vals in own.items()
-                       if not k.startswith("--")}
-                el.set("style", "; ".join(f"{k}: {v}{' !important' if k in own_imp else ''}"
-                                          for k, vals in own.items() for v in vals) + (";" if own else ""))
-                report["variables_resolved"] += 1
+    # <style> を外すと、要素自身の style の var() が定義 (:root の変数) を失うので、ここで値に置き換える
+    # (定義も代わりの値も無ければ止める)。
+    # <style> が無くても置き換える (ルートの style で定義した変数は、CSS を読まない描画系では解決されず、塗りが黒になるため)
+    for el in root.iter():
+        if isinstance(el.tag, str) and "var(" in (el.get("style") or "").lower():
+            own, own_imp = _parse_style(el.get("style"))
+            own = {k: [_substitute(v, variables, dead) for v in vals] for k, vals in own.items()
+                   if not k.startswith("--")}
+            el.set("style", "; ".join(f"{k}: {v}{' !important' if k in own_imp else ''}"
+                                      for k, vals in own.items() for v in vals) + (";" if own else ""))
+            report["variables_resolved"] += 1
 
     for el in root.iter():
         if not isinstance(el.tag, str) or _local(el.tag) == "style":
@@ -843,15 +910,16 @@ def make_self_contained(svg_bytes):
             report["elements_changed"] += 1
 
     # <use> などから id で参照される要素 (文字色の明示・<rect> の除去・opacity の掛け合わせで外す)
+    # id は href と url() のどちらからも _fragment_ids の 1 つの規則で取り出す
     referenced = set()
     for el in root.iter():
-        if not isinstance(el.tag, str):
-            continue
-        for k, v in el.attrib.items():
-            if "href" in k or "url(" in v:
-                referenced.update(re.findall(r"#([\w.-]+)", v))
+        if isinstance(el.tag, str):
+            referenced |= _referenced_ids(el)
     # そのうち、<use> などが href で参照し、参照した側から性質を受け継いで描かれる要素
-    instanced = {_href_id(el) for el in root.iter() if isinstance(el.tag, str) and _local(el.tag) in _INSTANCING} - {None}
+    instanced = set()
+    for el in root.iter():
+        if isinstance(el.tag, str) and _local(el.tag) in _INSTANCING:
+            instanced |= _href_ids(el)
 
     # テキストの文字色を明示する (輪郭化しても色が残るように)
     for el in root.iter():

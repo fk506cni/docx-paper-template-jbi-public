@@ -35,10 +35,13 @@ src/
 サンプル一式を消してから書き始める (`src/README.md` と `src/figs/mermaid/` は残る):
 
 ```bash
-rm -rf src/main.md src/ref.bib src/cover-letter.md src/supplementary src/figs/*.svg
+bash scripts/remove-sample.sh                         # 中身がサンプルのままのファイルだけを消す (自分のファイルは消さない)
 cp data/journals/bhi/skeleton/main.md src/main.md     # BHI に出すなら骨格から (記入欄は <<...>>)
 $EDITOR src/main.md
 ```
+
+自分の `main.md` の隣にサンプルのファイルが残っていると、最終モードの package は止まる (サンプルのカバーレターと補足資料が
+提出物に入らないように)。手順の正本は `docs/usage-guide.md` §1。
 
 雑誌によらない全機能の見本から始めるなら、骨格の代わりに次を写す:
 
@@ -53,7 +56,7 @@ YAML メタではなく `custom-style` Div** で書くこと (構造保持 AST �
 ## 執筆 → 投稿の流れ
 
 `docs/usage-guide.md` (操作ガイド: 図の追加 / 雑誌の追加 / 差分の出し方。§8 = BHI 投稿の通し手順) と、
-リポジトリルートの `README.md` (Getting Started) を参照。
+リポジトリルートの `README.md` (クイックスタート) を参照。
 
 > 注: `src/` 配下の原稿・図はあなたの著作物であり git 追跡される (`.gitignore` は中間/成果物のみ除外)。
 > テンプレートを別リポジトリとして複製して使う想定。

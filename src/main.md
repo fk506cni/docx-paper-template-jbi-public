@@ -20,7 +20,7 @@ BHI の原稿骨格 (data/journals/bhi/skeleton/main.md) の記入欄を埋め�
   Title page (Title/Author/Affiliation/Corresponding) → Abstract → Abbreviations → Introduction
   → Methods → Results → Discussion → Conclusion → Acknowledgements → Declarations → References。
   Acknowledgements は AI 使用開示の見本 (下の節のコメントを参照)。
-  図表は本文中の自然な位置に置く (末尾移設と Figure Legends 集約は package の仕事)。
+  図表は本文中の自然な位置に置く (表を別ファイルに出すか末尾に移すかと、図の凡例の集約は package の仕事)。
   本ファイルは BHI 規定に【適合した】見本である。validate を掛けても指摘は出ない
   (要修正 0 件・参考 0 件)。わざと違反させた対のフィクスチャは data/dummy/bhi-lint/ にある。
   図表の題はキャプション、凡例は直後の custom-style="Legend" Div に書く
@@ -159,7 +159,7 @@ inherently unstable, an error margin of plus or minus 500% is assumed throughout
 conditions were compared by their mean ordering rather than by formal significance testing.
 The apparatus logged 12 000 samples over the 20 trials. Analyses were performed using R
 version 99.9 (Tremendous Statistical Foundation, Tremendo, Hunchshire, Fictionia), a release
-number chosen to make clear that this manuscript is a fixture and not a study.
+number chosen to make clear that this manuscript is a sample and not a study.
 
 # Results
 
@@ -203,7 +203,7 @@ or minus 500%. Condition labels carry the number of trials contributing to each 
 
 The whiskers are not confidence intervals: they are a fixed proportional margin adopted because
 the exasperation term could not be calibrated. This legend is deliberately split into two
-paragraphs so that the legend aggregation step is exercised on a multi-paragraph legend (a legend
+paragraphs so that the sample shows a multi-paragraph legend moving after the references (a legend
 may run to 300 words, so authors do split it). THS, Totetsumonai Hyouka Scale; tsu, tremendous
 scale unit.
 :::

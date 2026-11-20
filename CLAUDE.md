@@ -28,7 +28,8 @@ Markdown で論文を書き、投稿用の docx を生成する**テンプレー
 ```
 .
 ├── src/                 # 原稿 (人が編集する一次ソース): main.md / ref.bib / figs/ (+ mermaid/)
-│                        #   revise-report.md / cover-letter.md (任意)
+│                        #   revise-report.md / cover-letter.md / supplementary/ (任意)
+│                        #   clone した直後は BHI のサンプル論文入り (scripts/remove-sample.sh で消す)
 ├── main/                # パイプラインの段ごとの処理コード
 │   ├── 00_setup/        #   共通設定 (defaults.yaml)・Lua フィルタ・lib/ (OOXML 操作・SVG 埋め込み・
 │   │                    #     ラスタ化・pptx 生成・雑誌プロファイルの解決)
@@ -164,9 +165,10 @@ Rectangles denote processing stages. EHR, electronic health record.
 **規定は変わりうるので、公式の [For Authors](https://biohealth-informatics.com/for-authors/) で確かめる。**
 ここに挙げるのは、体裁ではなく**原稿の書き方に踏み込むもの**だけ。
 
-- **骨格から書き始める**: `cp data/journals/bhi/skeleton/main.md src/main.md`。記入欄は `<<...>>`。
-  clone した直後の `src/` には記入済みのサンプル論文 (`data/dummy/bhi/` と同じ内容) が入っているので、先に消す
-  (`rm -rf src/main.md src/ref.bib src/cover-letter.md src/supplementary src/figs/*.svg`)。
+- **骨格から書き始める**: clone した直後の `src/` には記入済みのサンプル論文 (`data/dummy/bhi/` と同じ内容) が入っているので、
+  先に `bash scripts/remove-sample.sh` で消し (中身がサンプルのままのファイルだけを消す)、それから
+  `cp data/journals/bhi/skeleton/main.md src/main.md`。記入欄は `<<...>>`。自分の `main.md` の隣にサンプルのファイルが残っていると、
+  最終モードの package は止まる。
 - **節の順** (Original Article): Title page → Abstract → Abbreviations → Introduction → Methods → Results →
   Discussion → Conclusion → (Acknowledgments) → Declarations → References。図表は本文中の自然な位置に書く
   (`--mode final` が表を本文から外して 1 表 1 ファイルにし、図の題と凡例を References の後へ移す)。
@@ -233,7 +235,7 @@ Rectangles denote processing stages. EHR, electronic health record.
   完結したサンプル (`src/` と同じ構成)。clone した直後の `src/` には、BHI の Original Article の体裁のサンプル論文
   (TJD/THS のパロディ。`data/dummy/bhi/` と同じ内容) が入っている。
 - **`.development` マーカーで入力ルートを切り替える**: 有り → `data/dummy/`、無し → `src/`。存在だけで判定する
-  (`echo dev > .development` / `rm .development`)。環境変数 `INPUT_ROOT` か `--input <dir>` でも上書きできる。
+  (`echo dev > .development` / `rm -f .development`)。環境変数 `INPUT_ROOT` か `--input <dir>` でも上書きできる。
 - **開発時はまずダミーで動作を確かめる**。
 - 一時ファイルは `jank/` に置く (git 管理外。`diff.sh` と回帰スナップショットもここを使う)。
 

@@ -91,11 +91,6 @@ if [ ! -d "data/journals/$JOURNAL" ]; then
     echo "エラー: 雑誌プロファイル 'data/journals/$JOURNAL' がありません。" >&2
     exit 1
 fi
-# reference.docx は make-reference.sh が profile.yaml から作る生成物。無ければここで作る
-# (build.sh と同じ。scripts/lib/ensure-reference.sh)
-# shellcheck source=lib/ensure-reference.sh
-. "$SCRIPT_DIR/lib/ensure-reference.sh"
-ensure_reference_docx "$JOURNAL"
 
 # --- 旧版 (OLD_MD) / 新版 (NEW_MD) の決定 ---
 TMP_OLD=""
@@ -145,6 +140,37 @@ echo "  INPUT_ROOT = $INPUT_ROOT"
 echo "  JOURNAL    = $JOURNAL"
 echo "  OUT        = $OUT"
 
+# --- 旧版・新版の原稿と入力ルートの文献・図が、変換を行うコンテナから見えるかを確かめる (build.sh と同じ考え方) ---
+# コンテナにはリポジトリしかマウントしないので、リポジトリの外のファイルや絶対パスで指したファイルは、ホストでは見えても
+# コンテナの中で「原稿が見つかりません」になる。見えないものを名指しして先に止める。
+# reference.docx の生成 (コンテナを使う) より前に行い、Docker が動いていないときの案内をここで出す
+diff_inputs=("$OLD_MD" "$NEW_MD")
+for f in ref.bib figs; do
+    if [ -e "$INPUT_ROOT/$f" ]; then
+        diff_inputs+=("$INPUT_ROOT/$f")
+    fi
+done
+# 見えない入力は package.py が「inputs-visible: パス …」の行で知らせる。その行が無い失敗は Docker 自体の失敗
+if ! vis_out="$(docker compose -f "$COMPOSE_FILE" run --rm -T -u "$(id -u):$(id -g)" pandoc \
+        python3 main/step05_package/package.py inputs-visible --input-root . "${diff_inputs[@]}" 2>&1)"; then
+    unseen="$(printf '%s\n' "$vis_out" | tr -d '\r' | sed -n 's/^inputs-visible: //p' | tail -n 1)"
+    if [ -z "$unseen" ]; then
+        echo "エラー: 変換を行うコンテナ (pandoc) を起動できませんでした: $(printf '%s\n' "$vis_out" | tr -d '\r' | tail -n 1)" >&2
+        echo "  Docker (Docker Desktop) が動いているか、イメージを作ったか ('docker compose -f docker/docker-compose.yml build') を確かめてください。" >&2
+        exit 1
+    fi
+    echo "エラー: 次の入力は、ホストからは見えますが変換を行うコンテナからは見えません: $unseen" >&2
+    echo "  コンテナからはリポジトリの中しか見えません。旧版・新版の原稿と入力ルートはリポジトリの中に置き、" >&2
+    echo "  リポジトリのルートからの相対パスで指定してください (絶対パスや、リポジトリの外を指すリンクは使えません)。" >&2
+    exit 1
+fi
+
+# reference.docx は make-reference.sh が profile.yaml から作る生成物。無ければここで作る
+# (build.sh と同じ。scripts/lib/ensure-reference.sh)
+# shellcheck source=lib/ensure-reference.sh
+. "$SCRIPT_DIR/lib/ensure-reference.sh"
+ensure_reference_docx "$JOURNAL"
+
 # --- 同じ作業ツリーでの build / diff / package の同時実行を止める ---
 # diff も step01 の図を作り直すので、build の最中に回すと、build の記録と main.docx が一致したまま別の原稿の図が入りうる
 . "$SCRIPT_DIR/lib/build-lock.sh"
@@ -179,6 +205,19 @@ rm -f "$OUT_DIR/.main_diff.source"
 NEW_SHA_BEFORE=$(sha256sum "$NEW_MD" | cut -d' ' -f1)
 OLD_SHA_BEFORE=$(sha256sum "$OLD_MD" | cut -d' ' -f1)
 
+# 原稿のほかの入力 (ref.bib / cover-letter.md / revise-report.md / figs/) のハッシュも差分の前と後で比べ、差分の記録に書く。
+# 計算は package.py の _inputs_sha256() (build.sh の出所の記録と同じ数え方)。package が今の入力と比べ、差分を作った後に
+# 文献や図を直したときに注意を出す (main.md だけを比べると、古い文献・古い図の差分 docx が注意なしで提出物に入る)。
+# -T: 端末を割り当てない (割り当てると出力の行末に CR が付く)
+inputs_sha256() {
+    docker compose -f "$COMPOSE_FILE" run --rm -T -u "$(id -u):$(id -g)" pandoc \
+        python3 main/step05_package/package.py inputs-sha256 --input-root "$1" | tr -d '\r' | tail -n 1
+}
+if ! INPUTS_SHA_BEFORE="$(inputs_sha256 "$INPUT_ROOT")" || ! [[ "$INPUTS_SHA_BEFORE" =~ ^[0-9a-f]{64}$ ]]; then
+    echo "エラー: 原稿のほかの入力のハッシュを計算できませんでした (package.py inputs-sha256: '${INPUTS_SHA_BEFORE:-}')" >&2
+    exit 1
+fi
+
 echo ""
 $RUN python3 main/step03_diff/diff_docx.py \
     --input-root "$INPUT_ROOT" --journal "$JOURNAL" \
@@ -187,21 +226,44 @@ $RUN python3 main/step03_diff/diff_docx.py \
 
 # どの誌・どの原稿 (新版) から作った差分かを記録する。package.py が照合し、別の原稿の差分が
 # 提出物に混ざったときに SUBMISSION.md の注意に載せる。
-# 書式: 1 行目 = 誌 / 2 行目 = 新版の原稿のパス / 3 行目 = 新版の原稿の SHA-256 / 4 行目 = 記事種別 (無ければ空)。
+# 書式: 1 行目 = 誌 / 2 行目 = 新版の原稿のパス / 3 行目 = 新版の原稿の SHA-256 / 4 行目 = 記事種別 (無ければ空) /
+# 5 行目 = 入力ルートの原稿のほかの入力のハッシュ (build の出所の記録の inputs_sha256 と同じ)。package.py が読むので変えるときは両方を直すこと。
 # 中身のハッシュで比べるので、package.sh --build が main.docx を作り直しても「古い」とは判定しない
+# 次の照合で止めるときは、作った差分 docx も消す。記録の無い差分 docx を package は注意つきで集めるが、
+# 照合に通らなかった差分 docx は提出物に入れる理由が無いため
 NEW_SHA=$(sha256sum "$NEW_MD" | cut -d' ' -f1)
 changed_md=""
 if [ "$NEW_SHA" != "$NEW_SHA_BEFORE" ]; then
     changed_md="$NEW_MD"
 elif [ "$(sha256sum "$OLD_MD" | cut -d' ' -f1)" != "$OLD_SHA_BEFORE" ]; then
     changed_md="$OLD_MD"
+else
+    if ! INPUTS_SHA="$(inputs_sha256 "$INPUT_ROOT")" || ! [[ "$INPUTS_SHA" =~ ^[0-9a-f]{64}$ ]]; then
+        rm -f "$OUT"
+        echo "エラー: 原稿のほかの入力のハッシュを計算できませんでした (package.py inputs-sha256: '${INPUTS_SHA:-}')。" >&2
+        echo "  作った差分 docx ($OUT) は消して、記録を書きません。" >&2
+        exit 1
+    fi
+    if [ "$INPUTS_SHA" != "$INPUTS_SHA_BEFORE" ]; then
+        changed_md="$INPUT_ROOT の ref.bib / cover-letter.md / revise-report.md / figs/ のどれか"
+    fi
 fi
 if [ -n "$changed_md" ]; then
+    rm -f "$OUT"
     echo "エラー: 差分の最中に $changed_md が変わりました。もう一度 diff を回してください" >&2
-    echo "  (今の差分 docx は変わる前の原稿から作った可能性があるので、記録を書きません)。" >&2
+    echo "  (今の差分 docx は変わる前の原稿から作った可能性があるので、消して記録を書きません)。" >&2
     exit 1
 fi
-printf '%s\n%s\n%s\n%s\n' "$JOURNAL" "$NEW_MD" "$NEW_SHA" "$ARTICLE_TYPE" > "$OUT_DIR/.main_diff.source"
+# 差分 docx に埋め込んだ図 (data/step01_figures/) も、差分の最後に図の前処理の記録と照合する (build.sh と同じ)。
+# 止めた build のコンテナが記録の後に図を書くと、別の原稿の図が差分 docx に入りうるため
+if ! fig_problem="$(docker compose -f "$COMPOSE_FILE" run --rm -T -u "$(id -u):$(id -g)" pandoc \
+        python3 main/step05_package/package.py figures-source check --input-root "$INPUT_ROOT" 2>&1)"; then
+    rm -f "$OUT"
+    echo "エラー: 差分に使った図が、図の前処理の記録と食い違います: $(printf '%s\n' "$fig_problem" | tr -d '\r' | tail -n 1)。" >&2
+    echo "  今の差分 docx には別の原稿の図が入った可能性があるので、消して記録を書きません。--skip-figures を付けずにもう一度 diff を回してください。" >&2
+    exit 1
+fi
+printf '%s\n%s\n%s\n%s\n%s\n' "$JOURNAL" "$NEW_MD" "$NEW_SHA" "$ARTICLE_TYPE" "$INPUTS_SHA" > "$OUT_DIR/.main_diff.source"
 
 echo ""
 echo "== 差分生成 完了: $OUT =="
